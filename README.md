@@ -96,32 +96,22 @@ mkdir -p data/image data/mask checkpoints outputs
 python download_dataset.py
 ```
 
-Notes:
-- Nếu dùng Windows cmd hoặc PowerShell, thay `source` bằng `venv\\Scripts\\activate` hoặc `venv\\Scripts\\Activate.ps1`.
-- `setup.sh` (nếu có) có thể tự động tạo virtualenv và cài dependencies; file này không được thêm tự động bởi script này — bạn có thể tạo nó theo ý muốn.
-
-### 4. Tải dataset (sử dụng script)
-
-Script `download_dataset.py` tại project root để tải các file từ Google Drive trực tiếp vào `data/image/` và `data/mask/`.
-
-Ví dụ — Linux/macOS:
+Các options hữu ích:
 
 ```bash
-python download_dataset.py
+# Hoặc giữ lại file ZIP sau khi giải nén
+python download_dataset.py --keep-zip
+
+# Hoặc không download lại nếu data đã tồn tại
+python download_dataset.py --no-overwrite
+
+# Hoặc custom Google Drive IDs
+python download_dataset.py --image-id YOUR_ID --mask-id YOUR_ID
 ```
 
-Ví dụ — Windows PowerShell:
-
-```powershell
-python download_dataset.py
-# hoặc nếu muốn đặt tên file/ids khác:
-python download_dataset.py --image-id <IMAGE_FILE_ID> --mask-id <MASK_FILE_ID> \
-    --image-name my_image.png --mask-name my_mask.png
-```
-
-Tuỳ chọn hữu ích:
-- `--no-overwrite`: không ghi đè file đã tồn tại
-- `--data-dir`: thay đổi thư mục gốc (`data` mặc định)
+Notes:
+- Nếu dùng Windows cmd hoặc PowerShell, thay `source` bằng `venv\\Scripts\\activate` hoặc `venv\\Scripts\\Activate.ps1`.
+- `setup.sh` (nếu có) có thể tự động tạo virtualenv và cài dependencies; file này không được thêm tự động bởi script này — bạn có thể tạo nó theo ý muốn. 
 
 ## Chuẩn bị dữ liệu
 
