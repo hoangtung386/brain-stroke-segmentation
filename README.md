@@ -377,29 +377,5 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 Nếu kết quả trả về `CUDA available: True` thì bạn đã thành công và có thể bắt đầu chạy `python train.py`.
 
 ``` bash
-# Trong file dataset.py
-
-def get_transforms(config):
-    """Get image and mask transformations"""
-    
-    # Transform for RGB images
-    image_transform = transforms.Compose([
-        transforms.Resize(config.IMAGE_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=config.MEAN, std=config.STD)
-    ])
-    
-    # Transform for mask images
-    def target_transform(target):
-        # QUAN TRỌNG: Dùng Nearest Neighbor để không làm hỏng giá trị pixel của mask
-        img = transforms.Resize(config.IMAGE_SIZE, interpolation=transforms.InterpolationMode.NEAREST)(target)
-        img = transforms.functional.pil_to_tensor(img)
-        
-        # FIX LỖI Ở ĐÂY: Chuyển tất cả giá trị > 0 thành 1
-        # Điều này xử lý cả trường hợp mask là 255 hoặc mask bị noise
-        img = (img > 0).to(torch.long)
-        
-        return img
-    
-    return image_transform, target_transform
+export WANDB_API_KEY=391385c036f61fabfe6ef310f0c7a0edcb4e7ce0
 ```
