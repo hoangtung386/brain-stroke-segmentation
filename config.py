@@ -10,9 +10,9 @@ class Config:
     SEED = 42
     
     # Data paths
-    BASE_PATH = '/path/to/your/data'  # Thay đổi path này
-    IMAGE_DIR = os.path.join(BASE_PATH, 'image')
-    MASK_DIR = os.path.join(BASE_PATH, 'mask')
+    BASE_PATH = './data' 
+    IMAGE_DIR = os.path.join(BASE_PATH, 'images')
+    MASK_DIR = os.path.join(BASE_PATH, 'masks')
     OUTPUT_DIR = './outputs'
     CHECKPOINT_DIR = './checkpoints'
 
