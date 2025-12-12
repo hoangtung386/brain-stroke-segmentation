@@ -316,3 +316,62 @@ Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: lev
 ```bash
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'Device count: {torch.cuda.device_count()}')"
 ```
+
+Dựa vào hình ảnh lỗi bạn cung cấp  và nội dung file `requirements.txt`, nguyên nhân chính khiến code bị lỗi dù bạn đã cài đặt thủ công là do **xung đột giữa phiên bản PyTorch bạn cài (CUDA 13.0) và phiên bản Driver NVIDIA thực tế trên máy (12.4).**
+
+Dưới đây là giải thích chi tiết và cách khắc phục:
+
+### 1\. Tại sao bị lỗi?
+
+Lỗi nằm ở dòng này trong ảnh chụp màn hình của bạn:
+
+> `UserWarning: CUDA initialization: The NVIDIA driver on your system is too old (found version 12040).`
+
+  * **Vấn đề:** Bạn đã cài PyTorch hỗ trợ **CUDA 13.0** (`cu130`). Tuy nhiên, Driver card màn hình trên máy bạn (phiên bản `12040`) chỉ hỗ trợ tối đa đến **CUDA 12.4**.
+  * **Nguyên tắc:** Bạn có thể cài bản CUDA Toolkit (của PyTorch) **thấp hơn hoặc bằng** phiên bản mà Driver hỗ trợ, nhưng không được cài cao hơn.
+      * Driver 12.4 **không thể** chạy PyTorch CUDA 13.0.
+      * Driver 12.4 **có thể** chạy PyTorch CUDA 12.1 hoặc 12.4.
+
+Ngoài ra, việc bạn chạy `pip install -r requirements.txt` sau khi cài PyTorch thủ công có thể gây ra vấn đề phụ. Trong file `requirements.txt` chỉ ghi `torch>=2.0.0`, nếu không cẩn thận pip có thể đè phiên bản GPU bằng phiên bản CPU hoặc một phiên bản mặc định khác từ PyPI nếu nó thấy phiên bản hiện tại không khớp (dù trong trường hợp này, lỗi chính vẫn là do Driver quá cũ so với bản `cu130`).
+
+### 2\. Cách khắc phục (Từng bước)
+
+Bạn cần gỡ bản PyTorch hiện tại và cài đặt lại phiên bản tương thích với Driver 12.4 (hoặc 12.1 cho ổn định).
+
+**Bước 1: Gỡ bỏ phiên bản Torch bị lỗi**
+Chạy lệnh sau trong terminal (đảm bảo đang ở trong môi trường ảo `venv` hoặc `conda` của bạn):
+
+```bash
+pip uninstall torch torchvision torchaudio
+```
+
+**Bước 2: Cài đặt lại PyTorch đúng phiên bản (CUDA 12.1 hoặc 12.4)**
+Vì Driver của bạn là 12.4, phiên bản an toàn và ổn định nhất hiện nay được khuyến nghị là **CUDA 12.1** (hoặc 12.4). Hãy chạy lệnh sau:
+
+```bash
+# Khuyến nghị: Sử dụng bản CUDA 12.1 (Tương thích tốt nhất với đa số thư viện hiện tại)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+*Hoặc nếu bạn muốn dùng đúng bản 12.4:*
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
+
+**Bước 3: Cài đặt lại các thư viện còn lại**
+Sau khi đã cài xong PyTorch chuẩn, bạn mới chạy lệnh cài requirements (lệnh này sẽ bỏ qua torch vì đã thỏa mãn điều kiện `>=2.0.0`):
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3\. Kiểm tra lại
+
+Sau khi cài đặt xong, hãy chạy lại đoạn code kiểm tra nhanh để đảm bảo PyTorch đã nhận GPU:
+
+```bash
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}')"
+```
+
+Nếu kết quả trả về `CUDA available: True` thì bạn đã thành công và có thể bắt đầu chạy `python train.py`.
