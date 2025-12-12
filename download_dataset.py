@@ -173,12 +173,9 @@ def main(argv=None):
 
     # Create data directory structure
     data_dir = Path(args.data_dir)
-    image_dir = data_dir / 'images'  # Changed to 'images'
-    mask_dir = data_dir / 'masks'    # Changed to 'masks'
     
+    # Don't create images/masks folders yet - they will be renamed after extraction
     mkdir_p(str(data_dir))
-    mkdir_p(str(image_dir))
-    mkdir_p(str(mask_dir))
 
     # Define temporary zip file paths
     image_zip = data_dir / 'image.zip'
@@ -190,8 +187,14 @@ def main(argv=None):
 
     # Check if data already exists
     if args.no_overwrite:
-        image_count = count_files(str(image_dir))
-        mask_count = count_files(str(mask_dir))
+        # Check both old and new folder names
+        old_image_dir = data_dir / 'image'
+        new_image_dir = data_dir / 'images'
+        old_mask_dir = data_dir / 'mask'
+        new_mask_dir = data_dir / 'masks'
+        
+        image_count = count_files(str(new_image_dir if new_image_dir.exists() else old_image_dir))
+        mask_count = count_files(str(new_mask_dir if new_mask_dir.exists() else old_mask_dir))
         
         if image_count > 0 and mask_count > 0:
             print(f"\n✓ Data already exists:")
@@ -225,18 +228,32 @@ def main(argv=None):
     try:
         extract_zip(str(image_zip), str(data_dir))
         
-        # Rename 'image' folder to 'images' if needed
+        # Rename 'image' folder to 'images' if it was extracted
         old_image_dir = data_dir / 'image'
-        if old_image_dir.exists():
-            print(f"\n  Renaming folders...")
-            image_dir = rename_folder_if_needed(old_image_dir, 'images')
+        image_dir = data_dir / 'images'
+        
+        if old_image_dir.exists() and old_image_dir.is_dir():
+            print(f"\n  Renaming folder...")
+            if image_dir.exists():
+                # Remove empty images folder if it exists
+                if not any(image_dir.iterdir()):
+                    print(f"  Removing empty '{image_dir.name}' folder...")
+                    image_dir.rmdir()
+                else:
+                    print(f"  Warning: '{image_dir.name}' already exists with content")
+                    image_dir = old_image_dir  # Keep using old name
+            
+            if not image_dir.exists():
+                print(f"  Renaming '{old_image_dir.name}' to 'images'...")
+                old_image_dir.rename(image_dir)
+                print(f"  ✓ Renamed successfully")
         
         # Count extracted files
         image_count = count_files(str(image_dir))
         print(f"  ✓ Total images: {image_count} files")
         
         if image_count == 0:
-            print(f"  ⚠ Warning: No image files found after extraction")
+            print(f"  ! Warning: No image files found after extraction")
             
     except Exception as e:
         print(f"\n✗ Error extracting images: {e}")
@@ -269,18 +286,32 @@ def main(argv=None):
     try:
         extract_zip(str(mask_zip), str(data_dir))
         
-        # Rename 'mask' folder to 'masks' if needed
+        # Rename 'mask' folder to 'masks' if it was extracted
         old_mask_dir = data_dir / 'mask'
-        if old_mask_dir.exists():
-            print(f"\n  Renaming folders...")
-            mask_dir = rename_folder_if_needed(old_mask_dir, 'masks')
+        mask_dir = data_dir / 'masks'
+        
+        if old_mask_dir.exists() and old_mask_dir.is_dir():
+            print(f"\n  Renaming folder...")
+            if mask_dir.exists():
+                # Remove empty masks folder if it exists
+                if not any(mask_dir.iterdir()):
+                    print(f"  Removing empty '{mask_dir.name}' folder...")
+                    mask_dir.rmdir()
+                else:
+                    print(f"  Warning: '{mask_dir.name}' already exists with content")
+                    mask_dir = old_mask_dir  # Keep using old name
+            
+            if not mask_dir.exists():
+                print(f"  Renaming '{old_mask_dir.name}' to 'masks'...")
+                old_mask_dir.rename(mask_dir)
+                print(f"  ✓ Renamed successfully")
         
         # Count extracted files
         mask_count = count_files(str(mask_dir))
         print(f"  ✓ Total masks: {mask_count} files")
         
         if mask_count == 0:
-            print(f"  ⚠ Warning: No mask files found after extraction")
+            print(f"  ! Warning: No mask files found after extraction")
             
     except Exception as e:
         print(f"\n✗ Error extracting masks: {e}")
@@ -301,9 +332,9 @@ def main(argv=None):
         print(f"  ✓ Cleanup complete!")
 
     # Display summary
-    print("\n" + "="*60)
-    print("✓ Dataset Download Complete!")
-    print("="*60)
+    print("\n" + "-"*30)
+    print("Dataset Download Complete!")
+    print("-"*30)
     print(f"\nData summary:")
     print(f"  - Images: {image_count} files in {image_dir}")
     print(f"  - Masks:  {mask_count} files in {mask_dir}")
@@ -325,10 +356,10 @@ def main(argv=None):
         print(f"\n✓ Ready to train!")
         print(f"  Next step: python train.py")
     else:
-        print(f"\n⚠ Warning: Some data might be missing")
+        print(f"\n! Warning: Some data might be missing")
         print(f"  Please verify the downloaded files")
     
-    print("="*60)
+    print("-"*30)
 
 
 if __name__ == '__main__':
