@@ -123,8 +123,6 @@ Tuỳ chọn hữu ích:
 - `--no-overwrite`: không ghi đè file đã tồn tại
 - `--data-dir`: thay đổi thư mục gốc (`data` mặc định)
 
-Nếu bạn muốn tải nhiều file/1 folder: nén trước rồi upload lên Drive và tải file zip, sau đó giải nén thủ công.
-
 ## Chuẩn bị dữ liệu
 
 ### Cấu trúc dữ liệu
@@ -180,7 +178,7 @@ LEARNING_RATE = 1e-3    # Learning rate
 NUM_WORKERS = 4         # Số workers cho DataLoader
 ```
 
-### 5. Training
+### 3. Training
 
 1. Chuẩn bị
 
