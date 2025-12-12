@@ -375,7 +375,3 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 ```
 
 Nếu kết quả trả về `CUDA available: True` thì bạn đã thành công và có thể bắt đầu chạy `python train.py`.
-
-``` bash
-export WANDB_API_KEY=391385c036f61fabfe6ef310f0c7a0edcb4e7ce0
-```
