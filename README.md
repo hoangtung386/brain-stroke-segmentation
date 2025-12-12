@@ -152,7 +152,7 @@ Hoặc đặt `USE_WANDB = False` trong `config.py`
 Trong file `config.py`, bạn có thể điều chỉnh:
 
 ```python
-BATCH_SIZE = 32          # Giảm nếu bị out of memory
+BATCH_SIZE = 32         # Giảm nếu bị out of memory
 NUM_EPOCHS = 60         # Số epochs
 LEARNING_RATE = 1e-3    # Learning rate
 NUM_WORKERS = 4         # Số workers cho DataLoader
@@ -163,7 +163,7 @@ NUM_WORKERS = 4         # Số workers cho DataLoader
 1. Chuẩn bị
 
 - Chỉnh sửa `config.py` (điều chỉnh `BASE_PATH`, `BATCH_SIZE`, `NUM_EPOCHS`, ...)
-- Đảm bảo dữ liệu đã có trong `data/image` và `data/mask` (hoặc cập nhật `BASE_PATH`)
+- Đảm bảo dữ liệu đã có trong `data/images` và `data/masks` (hoặc cập nhật `BASE_PATH`)
 
 2. Chạy training
 
