@@ -119,17 +119,17 @@ Notes:
 
 ```
 data/
-├── image/
+├── images/
 │   ├── patient_001/
-│   │   ├── slice_001.png
-│   │   ├── slice_002.png
+│   │   ├── 001.png
+│   │   ├── 002.png
 │   │   └── ...
 │   ├── patient_002/
 │   └── ...
-└── mask/
+└── masks/
     ├── patient_001/
-    │   ├── slice_001.png
-    │   ├── slice_002.png
+    │   ├── 001.png
+    │   ├── 002.png
     │   └── ...
     ├── patient_002/
     └── ...
