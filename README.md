@@ -142,7 +142,7 @@ data/
 Nếu muốn sử dụng Weights & Biases để tracking:
 
 ```bash
-wandb login     # 391385c036f61fabfe6ef310f0c7a0edcb4e7ce0
+wandb login
 ```
 
 Hoặc đặt `USE_WANDB = False` trong `config.py`
