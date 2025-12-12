@@ -81,6 +81,24 @@ def count_files(directory: str, extension: str = '.png') -> int:
     return count
 
 
+def rename_folder_if_needed(old_path: Path, new_name: str) -> Path:
+    """Rename folder if it exists, return the new path"""
+    if old_path.exists() and old_path.is_dir():
+        new_path = old_path.parent / new_name
+        
+        # If new path already exists, merge contents
+        if new_path.exists():
+            print(f"  Folder '{new_name}' already exists, skipping rename")
+            return new_path
+        
+        print(f"  Renaming '{old_path.name}' to '{new_name}'...")
+        old_path.rename(new_path)
+        print(f"  ✓ Renamed successfully")
+        return new_path
+    
+    return old_path
+
+
 def mkdir_p(path: str):
     """Create directory if it doesn't exist"""
     os.makedirs(path, exist_ok=True)
@@ -155,8 +173,8 @@ def main(argv=None):
 
     # Create data directory structure
     data_dir = Path(args.data_dir)
-    image_dir = data_dir / 'image'
-    mask_dir = data_dir / 'mask'
+    image_dir = data_dir / 'images'  # Changed to 'images'
+    mask_dir = data_dir / 'masks'    # Changed to 'masks'
     
     mkdir_p(str(data_dir))
     mkdir_p(str(image_dir))
@@ -207,6 +225,12 @@ def main(argv=None):
     try:
         extract_zip(str(image_zip), str(data_dir))
         
+        # Rename 'image' folder to 'images' if needed
+        old_image_dir = data_dir / 'image'
+        if old_image_dir.exists():
+            print(f"\n  Renaming folders...")
+            image_dir = rename_folder_if_needed(old_image_dir, 'images')
+        
         # Count extracted files
         image_count = count_files(str(image_dir))
         print(f"  ✓ Total images: {image_count} files")
@@ -244,6 +268,12 @@ def main(argv=None):
     # Extract masks
     try:
         extract_zip(str(mask_zip), str(data_dir))
+        
+        # Rename 'mask' folder to 'masks' if needed
+        old_mask_dir = data_dir / 'mask'
+        if old_mask_dir.exists():
+            print(f"\n  Renaming folders...")
+            mask_dir = rename_folder_if_needed(old_mask_dir, 'masks')
         
         # Count extracted files
         mask_count = count_files(str(mask_dir))
