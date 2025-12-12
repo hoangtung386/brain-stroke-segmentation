@@ -74,14 +74,17 @@ chmod +x setup.sh
 2. Hoặc setup thủ công
 
 ```bash
-# Tạo virtual environment
+# Cài đặt new anaconda environment (Khuyên dùng)
+conda create --name stroke_seg_env python=3.11
+conda activate stroke_seg_env
+# hoặc tạo virtual environment
 python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 # hoặc PowerShell trên Windows
 venv\Scripts\Activate.ps1  # PowerShell
 
-# Cài đặt PyTorch cho CUDA 11.8 (ví dụ)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# Cài đặt PyTorch cho CUDA 12.1 (Tương thích tốt nhất với đa số thư viện hiện tại)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Cài dependencies
 pip install -r requirements.txt
@@ -312,89 +315,3 @@ MIT License
 ## Liên hệ
 
 Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: levuhoangtung1542003@gmail.com
-
-# ! Tôi đang sửa code vui lòng quay lại đọc và tải sau
-
-```bash
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'Device count: {torch.cuda.device_count()}')"
-```
-
-Dựa vào hình ảnh lỗi bạn cung cấp  và nội dung file `requirements.txt`, nguyên nhân chính khiến code bị lỗi dù bạn đã cài đặt thủ công là do **xung đột giữa phiên bản PyTorch bạn cài (CUDA 13.0) và phiên bản Driver NVIDIA thực tế trên máy (12.4).**
-
-Dưới đây là giải thích chi tiết và cách khắc phục:
-
-### 1\. Tại sao bị lỗi?
-
-Lỗi nằm ở dòng này trong ảnh chụp màn hình của bạn:
-
-> `UserWarning: CUDA initialization: The NVIDIA driver on your system is too old (found version 12040).`
-
-  * **Vấn đề:** Bạn đã cài PyTorch hỗ trợ **CUDA 13.0** (`cu130`). Tuy nhiên, Driver card màn hình trên máy bạn (phiên bản `12040`) chỉ hỗ trợ tối đa đến **CUDA 12.4**.
-  * **Nguyên tắc:** Bạn có thể cài bản CUDA Toolkit (của PyTorch) **thấp hơn hoặc bằng** phiên bản mà Driver hỗ trợ, nhưng không được cài cao hơn.
-      * Driver 12.4 **không thể** chạy PyTorch CUDA 13.0.
-      * Driver 12.4 **có thể** chạy PyTorch CUDA 12.1 hoặc 12.4.
-
-Ngoài ra, việc bạn chạy `pip install -r requirements.txt` sau khi cài PyTorch thủ công có thể gây ra vấn đề phụ. Trong file `requirements.txt` chỉ ghi `torch>=2.0.0`, nếu không cẩn thận pip có thể đè phiên bản GPU bằng phiên bản CPU hoặc một phiên bản mặc định khác từ PyPI nếu nó thấy phiên bản hiện tại không khớp (dù trong trường hợp này, lỗi chính vẫn là do Driver quá cũ so với bản `cu130`).
-
-### 2\. Cách khắc phục (Từng bước)
-
-Bạn cần gỡ bản PyTorch hiện tại và cài đặt lại phiên bản tương thích với Driver 12.4 (hoặc 12.1 cho ổn định).
-
-**Bước 1: Gỡ bỏ phiên bản Torch bị lỗi**
-Chạy lệnh sau trong terminal (đảm bảo đang ở trong môi trường ảo `venv` hoặc `conda` của bạn):
-
-```bash
-pip uninstall torch torchvision torchaudio
-```
-
-**Bước 2: Cài đặt lại PyTorch đúng phiên bản (CUDA 12.1 hoặc 12.4)**
-Vì Driver của bạn là 12.4, phiên bản an toàn và ổn định nhất hiện nay được khuyến nghị là **CUDA 12.1** (hoặc 12.4). Hãy chạy lệnh sau:
-
-```bash
-# Khuyến nghị: Sử dụng bản CUDA 12.1 (Tương thích tốt nhất với đa số thư viện hiện tại)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
-
-Lỗi này xảy ra vì máy tính của bạn đang lưu thông tin đăng nhập cũ của tài khoản `Vietanh2304`, nhưng bạn đang cố đẩy code lên kho (repository) của `hoangtung386`. GitHub từ chối vì `Vietanh2304` không có quyền ghi vào kho này.
-
-Vì bạn đã có **Personal Access Token (PAT)** của `hoangtung386`, bạn hãy làm theo các bước sau để ép Git sử dụng tài khoản đúng:
-
-### Cách xử lý nhanh nhất: Cập nhật URL của remote
-
-Bạn hãy chạy dòng lệnh sau trong terminal để gán cứng tên người dùng `hoangtung386` vào đường dẫn. Điều này sẽ buộc Git phải hỏi mật khẩu mới thay vì dùng lại thông tin của `Vietanh2304`.
-
-**Bước 1: Chạy lệnh đổi URL**
-Copy và chạy lệnh này trong terminal:
-
-```bash
-git remote set-url origin https://hoangtung386@github.com/hoangtung386/brain-stroke-segmentation.git
-```
-
-**Bước 2: Thực hiện Push lại**
-Chạy lệnh push:
-
-```bash
-git push
-```
-
-**Bước 3: Nhập thông tin xác thực**
-Lúc này terminal sẽ yêu cầu nhập Password.
-
-  * Tại dòng `Password for 'https://hoangtung386@github.com':` -\> **Bạn hãy dán (paste) cái Personal Access Token mà bạn vừa tạo vào đây.**
-  * *Lưu ý:* Khi bạn paste token, màn hình sẽ không hiện ký tự nào (bảo mật), bạn cứ paste xong rồi nhấn **Enter**.
-
------
-
-### Nếu vẫn bị lỗi (Cách reset thông tin đăng nhập)
-
-Nếu cách trên vẫn bị kẹt, bạn cần xóa thông tin đăng nhập cũ đang bị lưu trong máy đi bằng lệnh sau:
-
-1.  Xóa thông tin user cũ:
-    ```bash
-    git config --global --unset credential.helper
-    ```
-2.  Sau đó thử `git push` lại và nhập Token như Bước 3 ở trên.
-
-**Tóm tắt:** Vấn đề cốt lõi là máy đang "nhớ nhầm" bạn là người cũ. Việc thêm `hoangtung386` vào trước `github.com` trong URL sẽ giúp máy nhận diện đúng chủ sở hữu kho.
-
-Bạn có muốn tôi hướng dẫn cách lưu token mãi mãi để không phải nhập lại lần sau không?

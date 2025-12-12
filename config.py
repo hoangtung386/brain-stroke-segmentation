@@ -1,6 +1,5 @@
 """
 Configuration file for Brain Stroke Segmentation project
-ghp#zzOIa2BaoAjy8g7BaSAfwSFEUc3y1V1JRBsv
 """
 import os
 
@@ -27,14 +26,14 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 32
-    NUM_EPOCHS = 150
+    BATCH_SIZE = 4
+    NUM_EPOCHS = 300
     LEARNING_RATE = 1e-3
     
     # DataLoader parameters
     NUM_WORKERS = 4  # Tăng lên cho RTX 3090
     CACHE_RATE = 0
-    PIN_MEMORY = True
+    PIN_MEMORY = False
     PERSISTENT_WORKERS = True
     
     # Model architecture
@@ -50,7 +49,7 @@ class Config:
     
     # W&B settings
     USE_WANDB = True
-    WANDB_PROJECT = "my-2D-Unet-segment-Stroke"
+    WANDB_PROJECT = "Lightweight-CNN-segment-Stroke"
     WANDB_ENTITY = None  # Your W&B username
     
     # Scheduler parameters

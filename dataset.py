@@ -60,11 +60,14 @@ def get_transforms(config):
     
     # Transform for mask images
     def target_transform(target):
-        img = transforms.Resize(config.IMAGE_SIZE)(target)
+        # QUAN TRỌNG: Dùng Nearest Neighbor để không làm hỏng giá trị pixel của mask
+        img = transforms.Resize(config.IMAGE_SIZE, interpolation=transforms.InterpolationMode.NEAREST)(target)
         img = transforms.functional.pil_to_tensor(img)
-        # Keep channel dimension: (1, H, W) not (H, W)
-        # Don't squeeze! MONAI DiceLoss needs (B, 1, H, W)
-        img = img.to(torch.long)
+        
+        # FIX LỖI Ở ĐÂY: Chuyển tất cả giá trị > 0 thành 1
+        # Điều này xử lý cả trường hợp mask là 255 hoặc mask bị noise
+        img = (img > 0).to(torch.long)
+        
         return img
     
     return image_transform, target_transform
