@@ -19,80 +19,40 @@ import zipfile
 from pathlib import Path
 
 
-def ensure_requests():
-    """Ensure requests package is installed"""
+def ensure_gdown():
+    """Ensure gdown package is installed"""
     try:
-        import requests  # type: ignore
-        return requests
+        import gdown
+        return gdown
     except Exception:
-        print("`requests` package not found — attempting to install it now...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"]) 
-        import requests  # type: ignore
-        return requests
-
-
-requests = ensure_requests()
-
-
-def get_confirm_token(response):
-    """Extract download confirmation token from Google Drive response"""
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            return value
-    # fallback: try to find confirm token in the HTML
-    m = re.search(r"confirm=([0-9A-Za-z_\-]+)&", response.text)
-    if m:
-        return m.group(1)
-    return None
-
-
-def save_response_content(response, destination, chunk_size=32768):
-    """Save response content to file with progress bar"""
-    total = response.headers.get('Content-Length')
-    try:
-        total = int(total) if total is not None else None
-    except Exception:
-        total = None
-
-    downloaded = 0
-    with open(destination, 'wb') as f:
-        for chunk in response.iter_content(chunk_size):
-            if chunk:  # filter out keep-alive chunks
-                f.write(chunk)
-                downloaded += len(chunk)
-                if total:
-                    pct = downloaded / total * 100
-                    mb_downloaded = downloaded / (1024 * 1024)
-                    mb_total = total / (1024 * 1024)
-                    print(f"\r  Downloaded {mb_downloaded:.1f}/{mb_total:.1f} MB ({pct:.1f}%)", 
-                          end='', flush=True)
-                else:
-                    mb_downloaded = downloaded / (1024 * 1024)
-                    print(f"\r  Downloaded {mb_downloaded:.1f} MB", end='', flush=True)
-    print()  # New line after progress
-
-
-def download_file_from_google_drive(file_id: str, destination: str):
-    """Download a file from Google Drive into `destination` path."""
-    URL = "https://docs.google.com/uc?export=download"
-    session = requests.Session()
-
-    print(f"  Requesting file from Google Drive (ID: {file_id})...")
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        print(f"  Large file detected, confirming download...")
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-
-    response.raise_for_status()
-    save_response_content(response, destination)
+        print("`gdown` package not found — installing it now...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"]) 
+        import gdown
+        return gdown
 
 
 def extract_zip(zip_path: str, extract_to: str):
     """Extract ZIP file to specified directory"""
     print(f"  Extracting {zip_path}...")
+    
+    # Verify it's a valid ZIP file
+    if not zipfile.is_zipfile(zip_path):
+        print(f"  ✗ Error: {zip_path} is not a valid ZIP file")
+        print(f"  The file might be corrupted or download failed.")
+        
+        # Check file size
+        file_size = os.path.getsize(zip_path)
+        print(f"  File size: {file_size / 1024:.1f} KB")
+        
+        if file_size < 1024 * 100:  # Less than 100KB
+            print(f"  File is too small - likely an error page from Google Drive")
+            # Show first 500 chars to debug
+            with open(zip_path, 'r', errors='ignore') as f:
+                content = f.read(500)
+                if '<html' in content.lower() or 'google' in content.lower():
+                    print(f"  Detected HTML content - download failed")
+        
+        raise Exception(f"Invalid ZIP file: {zip_path}")
     
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         # Get list of files in zip
@@ -110,7 +70,7 @@ def extract_zip(zip_path: str, extract_to: str):
                       end='', flush=True)
         print()  # New line after progress
     
-    print(f"  Extraction complete!")
+    print(f"  ✓ Extraction complete!")
 
 
 def count_files(directory: str, extension: str = '.png') -> int:
@@ -124,6 +84,32 @@ def count_files(directory: str, extension: str = '.png') -> int:
 def mkdir_p(path: str):
     """Create directory if it doesn't exist"""
     os.makedirs(path, exist_ok=True)
+
+
+def download_from_gdrive(file_id: str, output_path: str, quiet: bool = False):
+    """Download file from Google Drive using gdown"""
+    gdown = ensure_gdown()
+    
+    url = f'https://drive.google.com/uc?id={file_id}'
+    
+    print(f"  Downloading from Google Drive...")
+    print(f"  File ID: {file_id}")
+    
+    try:
+        gdown.download(url, output_path, quiet=quiet, fuzzy=True)
+        
+        # Verify download
+        if os.path.exists(output_path):
+            file_size = os.path.getsize(output_path) / (1024 * 1024)  # MB
+            print(f"  ✓ Downloaded {file_size:.1f} MB")
+            return True
+        else:
+            print(f"  ✗ Download failed - file not found")
+            return False
+            
+    except Exception as e:
+        print(f"  ✗ Error: {e}")
+        return False
 
 
 # Default Google Drive file IDs (these are ZIP files)
@@ -160,6 +146,11 @@ def main(argv=None):
         action='store_true', 
         help='Skip download if data already exists'
     )
+    parser.add_argument(
+        '--quiet',
+        action='store_true',
+        help='Suppress gdown progress output'
+    )
     args = parser.parse_args(argv)
 
     # Create data directory structure
@@ -185,7 +176,7 @@ def main(argv=None):
         mask_count = count_files(str(mask_dir))
         
         if image_count > 0 and mask_count > 0:
-            print(f"\nData already exists:")
+            print(f"\n✓ Data already exists:")
             print(f"  - Images: {image_count} files")
             print(f"  - Masks: {mask_count} files")
             print("\nSkipping download (use without --no-overwrite to re-download)")
@@ -193,22 +184,24 @@ def main(argv=None):
 
     # Download and extract images
     print(f"\n[1/2] Processing Images")
-    print("-" * 30)
+    print("-" * 60)
     
-    if image_zip.exists() and not args.no_overwrite:
-        print(f"  Removing existing {image_zip}...")
+    # Remove old zip if exists
+    if image_zip.exists():
+        print(f"  Removing existing {image_zip.name}...")
         image_zip.unlink()
     
-    if not image_zip.exists():
-        print(f"  Downloading image ZIP to {image_zip}...")
-        try:
-            download_file_from_google_drive(args.image_id, str(image_zip))
-            print(f"  Download complete!")
-        except Exception as e:
-            print(f"\n  Error downloading images: {e}")
-            return
-    else:
-        print(f"  Using existing {image_zip}")
+    # Download
+    success = download_from_gdrive(args.image_id, str(image_zip), quiet=args.quiet)
+    
+    if not success or not image_zip.exists():
+        print(f"\n✗ Failed to download images")
+        print(f"\nTroubleshooting:")
+        print(f"  1. Check your internet connection")
+        print(f"  2. Verify the Google Drive file ID: {args.image_id}")
+        print(f"  3. Make sure the file is publicly accessible")
+        print(f"  4. Try using gdown directly: gdown {args.image_id}")
+        return
 
     # Extract images
     try:
@@ -216,29 +209,37 @@ def main(argv=None):
         
         # Count extracted files
         image_count = count_files(str(image_dir))
-        print(f"  Total images: {image_count} files")
+        print(f"  ✓ Total images: {image_count} files")
+        
+        if image_count == 0:
+            print(f"  ⚠ Warning: No image files found after extraction")
+            
     except Exception as e:
-        print(f"\n  Error extracting images: {e}")
+        print(f"\n✗ Error extracting images: {e}")
+        print(f"\nThe downloaded file might not be a valid ZIP.")
+        print(f"Please check the file manually: {image_zip}")
         return
 
     # Download and extract masks
     print(f"\n[2/2] Processing Masks")
     print("-" * 60)
     
-    if mask_zip.exists() and not args.no_overwrite:
-        print(f"  Removing existing {mask_zip}...")
+    # Remove old zip if exists
+    if mask_zip.exists():
+        print(f"  Removing existing {mask_zip.name}...")
         mask_zip.unlink()
     
-    if not mask_zip.exists():
-        print(f"  Downloading mask ZIP to {mask_zip}...")
-        try:
-            download_file_from_google_drive(args.mask_id, str(mask_zip))
-            print(f"  Download complete!")
-        except Exception as e:
-            print(f"\n  Error downloading masks: {e}")
-            return
-    else:
-        print(f"  Using existing {mask_zip}")
+    # Download
+    success = download_from_gdrive(args.mask_id, str(mask_zip), quiet=args.quiet)
+    
+    if not success or not mask_zip.exists():
+        print(f"\n✗ Failed to download masks")
+        print(f"\nTroubleshooting:")
+        print(f"  1. Check your internet connection")
+        print(f"  2. Verify the Google Drive file ID: {args.mask_id}")
+        print(f"  3. Make sure the file is publicly accessible")
+        print(f"  4. Try using gdown directly: gdown {args.mask_id}")
+        return
 
     # Extract masks
     try:
@@ -246,27 +247,33 @@ def main(argv=None):
         
         # Count extracted files
         mask_count = count_files(str(mask_dir))
-        print(f"  Total masks: {mask_count} files")
+        print(f"  ✓ Total masks: {mask_count} files")
+        
+        if mask_count == 0:
+            print(f"  ⚠ Warning: No mask files found after extraction")
+            
     except Exception as e:
-        print(f"\n  Error extracting masks: {e}")
+        print(f"\n✗ Error extracting masks: {e}")
+        print(f"\nThe downloaded file might not be a valid ZIP.")
+        print(f"Please check the file manually: {mask_zip}")
         return
 
     # Clean up ZIP files
     if not args.keep_zip:
         print(f"\n[Cleanup]")
-        print("-" * 30)
+        print("-" * 60)
         if image_zip.exists():
-            print(f"  Removing {image_zip}...")
+            print(f"  Removing {image_zip.name}...")
             image_zip.unlink()
         if mask_zip.exists():
-            print(f"  Removing {mask_zip}...")
+            print(f"  Removing {mask_zip.name}...")
             mask_zip.unlink()
-        print(f"  Cleanup complete!")
+        print(f"  ✓ Cleanup complete!")
 
     # Display summary
-    print("\n" + "-"*30)
-    print("Dataset Download Complete!")
-    print("-"*30)
+    print("\n" + "="*60)
+    print("✓ Dataset Download Complete!")
+    print("="*60)
     print(f"\nData summary:")
     print(f"  - Images: {image_count} files in {image_dir}")
     print(f"  - Masks:  {mask_count} files in {mask_dir}")
@@ -278,11 +285,20 @@ def main(argv=None):
     
     if image_subdirs:
         print(f"  - Image subfolders: {len(image_subdirs)}")
-        print(f"    Examples: {', '.join([d.name for d in image_subdirs[:3]])}")
+        print(f"    Examples: {', '.join([d.name for d in list(image_subdirs)[:3]])}")
     
     if mask_subdirs:
         print(f"  - Mask subfolders: {len(mask_subdirs)}")
-        print(f"    Examples: {', '.join([d.name for d in mask_subdirs[:3]])}")
+        print(f"    Examples: {', '.join([d.name for d in list(mask_subdirs)[:3]])}")
+    
+    if image_count > 0 and mask_count > 0:
+        print(f"\n✓ Ready to train!")
+        print(f"  Next step: python train.py")
+    else:
+        print(f"\n⚠ Warning: Some data might be missing")
+        print(f"  Please verify the downloaded files")
+    
+    print("="*60)
 
 
 if __name__ == '__main__':
