@@ -53,16 +53,7 @@ git clone https://github.com/hoangtung386/brain-stroke-segmentation.git
 cd brain-stroke-segmentation
 ```
 
-### 2. Tạo virtual environment
-
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# hoặc
-venv\Scripts\activate  # Windows
-```
-
-### 3. Cài đặt (tự động / thủ công)
+### 2. Cài đặt (tự động / thủ công)
 
 1. Setup tự động (dễ nhất)
 
