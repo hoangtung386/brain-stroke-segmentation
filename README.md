@@ -313,6 +313,8 @@ MIT License
 
 Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: levuhoangtung1542003@gmail.com
 
+# ! Tôi đang sửa code vui lòng quay lại đọc và tải sau
+
 ```bash
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'Device count: {torch.cuda.device_count()}')"
 ```
@@ -353,25 +355,46 @@ Vì Driver của bạn là 12.4, phiên bản an toàn và ổn định nhất h
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
-*Hoặc nếu bạn muốn dùng đúng bản 12.4:*
+Lỗi này xảy ra vì máy tính của bạn đang lưu thông tin đăng nhập cũ của tài khoản `Vietanh2304`, nhưng bạn đang cố đẩy code lên kho (repository) của `hoangtung386`. GitHub từ chối vì `Vietanh2304` không có quyền ghi vào kho này.
+
+Vì bạn đã có **Personal Access Token (PAT)** của `hoangtung386`, bạn hãy làm theo các bước sau để ép Git sử dụng tài khoản đúng:
+
+### Cách xử lý nhanh nhất: Cập nhật URL của remote
+
+Bạn hãy chạy dòng lệnh sau trong terminal để gán cứng tên người dùng `hoangtung386` vào đường dẫn. Điều này sẽ buộc Git phải hỏi mật khẩu mới thay vì dùng lại thông tin của `Vietanh2304`.
+
+**Bước 1: Chạy lệnh đổi URL**
+Copy và chạy lệnh này trong terminal:
 
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+git remote set-url origin https://hoangtung386@github.com/hoangtung386/brain-stroke-segmentation.git
 ```
 
-**Bước 3: Cài đặt lại các thư viện còn lại**
-Sau khi đã cài xong PyTorch chuẩn, bạn mới chạy lệnh cài requirements (lệnh này sẽ bỏ qua torch vì đã thỏa mãn điều kiện `>=2.0.0`):
+**Bước 2: Thực hiện Push lại**
+Chạy lệnh push:
 
 ```bash
-pip install -r requirements.txt
+git push
 ```
 
-### 3\. Kiểm tra lại
+**Bước 3: Nhập thông tin xác thực**
+Lúc này terminal sẽ yêu cầu nhập Password.
 
-Sau khi cài đặt xong, hãy chạy lại đoạn code kiểm tra nhanh để đảm bảo PyTorch đã nhận GPU:
+  * Tại dòng `Password for 'https://hoangtung386@github.com':` -\> **Bạn hãy dán (paste) cái Personal Access Token mà bạn vừa tạo vào đây.**
+  * *Lưu ý:* Khi bạn paste token, màn hình sẽ không hiện ký tự nào (bảo mật), bạn cứ paste xong rồi nhấn **Enter**.
 
-```bash
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}')"
-```
+-----
 
-Nếu kết quả trả về `CUDA available: True` thì bạn đã thành công và có thể bắt đầu chạy `python train.py`.
+### Nếu vẫn bị lỗi (Cách reset thông tin đăng nhập)
+
+Nếu cách trên vẫn bị kẹt, bạn cần xóa thông tin đăng nhập cũ đang bị lưu trong máy đi bằng lệnh sau:
+
+1.  Xóa thông tin user cũ:
+    ```bash
+    git config --global --unset credential.helper
+    ```
+2.  Sau đó thử `git push` lại và nhập Token như Bước 3 ở trên.
+
+**Tóm tắt:** Vấn đề cốt lõi là máy đang "nhớ nhầm" bạn là người cũ. Việc thêm `hoangtung386` vào trước `github.com` trong URL sẽ giúp máy nhận diện đúng chủ sở hữu kho.
+
+Bạn có muốn tôi hướng dẫn cách lưu token mãi mãi để không phải nhập lại lần sau không?
