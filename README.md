@@ -135,16 +135,6 @@ data/
     └── ...
 ```
 
-### Cấu hình đường dẫn
-
-Mở file `config.py` và chỉnh sửa:
-
-```python
-BASE_PATH = '/path/to/your/data'  # Thay đổi đường dẫn này
-IMAGE_DIR = os.path.join(BASE_PATH, 'image')
-MASK_DIR = os.path.join(BASE_PATH, 'mask')
-```
-
 ## Training
 
 ### 1. Cấu hình W&B (optional)
