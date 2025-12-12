@@ -61,7 +61,9 @@ def get_transforms(config):
     # Transform for mask images
     def target_transform(target):
         img = transforms.Resize(config.IMAGE_SIZE)(target)
-        img = transforms.functional.pil_to_tensor(img).squeeze_()
+        img = transforms.functional.pil_to_tensor(img)
+        # Keep channel dimension: (1, H, W) not (H, W)
+        # Don't squeeze! MONAI DiceLoss needs (B, 1, H, W)
         img = img.to(torch.long)
         return img
     
