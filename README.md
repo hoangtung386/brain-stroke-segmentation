@@ -20,21 +20,21 @@ brain-stroke-segmentation/
 ├── models/
 │   ├── __init__.py
 │   ├── components.py         # Các thành phần của model
-│   ├── sean.py              # SEAN architecture
-│   ├── global_path.py       # ResNeXt global path
-│   └── lcnn.py              # LCNN main architecture
+│   ├── sean.py               # SEAN architecture
+│   ├── global_path.py        # ResNeXt global path
+│   └── lcnn.py               # LCNN main architecture
 │
 ├── utils/
 │   ├── __init__.py
-│   ├── visualization.py     # Visualization utilities
-│   └── metrics.py           # Metrics computation
+│   ├── visualization.py      # Visualization utilities
+│   └── metrics.py            # Metrics computation
 │
 ├── data/                     # Thư mục chứa dữ liệu
-│   ├── image/               # CT images
-│   └── mask/                # Segmentation masks
+│   ├── image/                # CT images
+│   └── mask/                 # Segmentation masks
 │
-├── checkpoints/             # Thư mục lưu checkpoints
-└── outputs/                 # Thư mục lưu kết quả
+├── checkpoints/              # Thư mục lưu checkpoints
+└── outputs/                  # Thư mục lưu kết quả
 ```
 
 ## Yêu cầu hệ thống
