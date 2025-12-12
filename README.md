@@ -327,22 +327,10 @@ Model sẽ lưu:
 - **Training history**: `outputs/training_history.csv`
 - **Visualizations**: `outputs/*.png`
 
-## Citation
-
-Nếu bạn sử dụng code này, vui lòng cite:
-
-```bibtex
-@article{your_paper,
-  title={Brain Stroke Segmentation using Dual CNN Architecture},
-  author={Your Name},
-  year={2025}
-}
-```
-
 ## License
 
 MIT License
 
 ## Liên hệ
 
-Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: your.email@example.com
+Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: levuhoangtung1542003@gmail.com
