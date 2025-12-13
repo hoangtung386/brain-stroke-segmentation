@@ -8,6 +8,12 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 
 ## 🌟 Key Features
 
+## 🏗️ Model Architecture
+
+![Architectural Model](./Architectural_model.png)
+
+This diagram illustrates the **LCNN (Local-Global Combined Network)** architecture used in this project. It highlights the integration of our **Symmetry Enhanced Attention Network (SEAN)** for capturing local, contralateral features and **ResNeXt50** for global semantic understanding. The parallel processing pathways ensure both fine-grained lesion details and broader context are preserved for accurate segmentation.
+
 *   **Symmetry Enhanced Attention (SEAN)**: Exploits the bilateral symmetry of the human brain. An Alignment Network aligns the input slices, allowing the model to compare features from the contralateral hemisphere to identify anomalies.
 *   **Dual-Path Architecture**:
     *   **Local Path (SEAN)**: Processes 3D stacks of adjacent CT slices to capture volumetric context and details.
