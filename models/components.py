@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 class AlignmentNetwork(nn.Module):
     """
-    FIXED Alignment Network - Dynamic feature size calculation
+    Alignment Network - Dynamic feature size calculation
     """
     def __init__(self, input_size=(512, 512)):
         super(AlignmentNetwork, self).__init__()
@@ -20,12 +20,10 @@ class AlignmentNetwork(nn.Module):
         self.pool1 = nn.MaxPool2d(2, 2)
         
         self.conv2 = nn.Conv2d(32, 32, kernel_size=5, padding=2)
-        self.bn2 = nn.BatchNorm2d(32)  # ← THÊM BatchNorm
+        self.bn2 = nn.BatchNorm2d(32)  # Thêm BatchNorm
         self.pool2 = nn.MaxPool2d(2, 2)
         
-        # ============================================
-        # FIX: Tính toán ĐỘNG kích thước sau pooling
-        # ============================================
+        # Tính toán ĐỘNG kích thước sau pooling
         H, W = input_size
         H_after_pool = H // 4  # 2 pooling layers
         W_after_pool = W // 4
@@ -36,7 +34,7 @@ class AlignmentNetwork(nn.Module):
         self.adaptive_pool = nn.AdaptiveAvgPool2d((16, 16))  # Output 16x16
         flattened_size = 32 * 16 * 16  # = 8,192
         
-        self.fc1 = nn.Linear(flattened_size, 128)  # ← Thêm hidden layer
+        self.fc1 = nn.Linear(flattened_size, 128)  # Thêm hidden layer
         self.dropout = nn.Dropout(0.3)
         self.fc2 = nn.Linear(128, 3)  # [angle, shift_x, shift_y]
         
@@ -126,7 +124,7 @@ class SymmetryEnhancedAttention(nn.Module):
         self.h = nn.Conv2d(in_channels, in_channels // 2, 1)
         self.out_conv = nn.Conv2d(in_channels, in_channels, 1)
         
-        # ← THÊM normalization
+        # Thêm normalization
         self.norm = nn.LayerNorm(in_channels)
     
     def forward(self, x_slices):
@@ -240,3 +238,4 @@ class DecoderBlock(nn.Module):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         return x
+        
