@@ -43,5 +43,6 @@ class ResNeXtGlobal(nn.Module):
             scale_factor=8, 
             mode='bilinear', 
             align_corners=True
-        )                               # (B, num_classes, H, W)
+        )                         # (B, num_classes, H, W)
+        
         return x

@@ -10,6 +10,7 @@ from tqdm import tqdm
 from datetime import datetime
 from monai.losses import DiceLoss, DiceCELoss
 from monai.metrics import DiceMetric
+from torch.cuda.amp import GradScaler, autocast
 
 
 class CombinedLoss(nn.Module):
@@ -109,6 +110,9 @@ class Trainer:
             weight_decay=1e-5
         )
         
+        # AMP Scaler
+        self.scaler = GradScaler()
+        
         # Cosine annealing scheduler (better than ReduceLROnPlateau for this task)
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             self.optimizer,
@@ -205,20 +209,23 @@ class Trainer:
             self.optimizer.zero_grad()
             
             # Forward pass with alignment
-            outputs, aligned_slices, _ = self.model(images, return_alignment=True)
+            with autocast():
+                outputs, aligned_slices, _ = self.model(images, return_alignment=True)
+                
+                # Compute loss
+                loss, dice_ce_loss, alignment_loss = self.criterion(
+                    outputs, masks, aligned_slices
+                )
             
-            # Compute loss
-            loss, dice_ce_loss, alignment_loss = self.criterion(
-                outputs, masks, aligned_slices
-            )
-            
-            # Backward pass
-            loss.backward()
+            # Backward pass with scaler
+            self.scaler.scale(loss).backward()
             
             # Gradient clipping to prevent exploding gradients
+            self.scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
             total_loss += loss.item()
             total_dice_ce += dice_ce_loss.item()

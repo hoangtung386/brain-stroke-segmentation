@@ -20,13 +20,13 @@ class Config:
     TRAIN_SPLIT = 0.8
     
     # Model parameters
-    NUM_CHANNELS = 1  # Fixed: Grayscale CT images
+    NUM_CHANNELS = 1
     NUM_CLASSES = 2
     INIT_FEATURES = 32
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 4  # Adjust based on your GPU memory
+    BATCH_SIZE = 4
     NUM_EPOCHS = 300
     LEARNING_RATE = 1e-3
     

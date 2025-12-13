@@ -89,6 +89,10 @@ class BrainStrokeDataset(Dataset):
             # Apply transformations
             if self.transform:
                 image = self.transform(image)
+                # Remove channel dim (1, H, W) -> (H, W)
+                # This ensures stack creates (2T+1, H, W) instead of (2T+1, 1, H, W)
+                if image.shape[0] == 1:
+                    image = image.squeeze(0)
             
             image_slices.append(image)
             
