@@ -246,7 +246,7 @@ class Trainer:
         avg_alignment = total_alignment / len(self.train_loader)
         
         return avg_loss, avg_dice_ce, avg_alignment
-    
+
     def validate(self, epoch):
         """Validate model"""
         self.model.eval()
@@ -266,14 +266,21 @@ class Trainer:
                 loss, _, _ = self.criterion(outputs, masks, aligned_slices=None)
                 total_val_loss += loss.item()
                 
-                # Compute Dice metric
-                self.dice_metric(y_pred=outputs, y=masks)
+                # Compute Dice metric - FIX HERE
+                # Add unsqueeze to match expected shape for masks
+                if masks.ndim == 3:  # (B, H, W)
+                    masks_for_metric = masks.unsqueeze(1)  # (B, 1, H, W)
+                else:
+                    masks_for_metric = masks
+                
+                self.dice_metric(y_pred=outputs, y=masks_for_metric)
         
+        # FIX: Get scalar value correctly
         val_dice = self.dice_metric.aggregate().item()
         avg_val_loss = total_val_loss / len(self.val_loader)
         
         return val_dice, avg_val_loss
-    
+
     def train(self, num_epochs=None):
         """Main training loop"""
         if num_epochs is None:
