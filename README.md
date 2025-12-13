@@ -135,11 +135,13 @@ NORMALIZE = True        # Ensure this matches your data stats
 > `python -c "from config import Config; Config.compute_normalization_stats(Config.IMAGE_DIR)"`
 
 ### 3. Start Training
+- Start new training
 ```bash
-# Start new training
 python train.py
+```
 
-# Resume from checkpoint
+- Resume from checkpoint
+```bash
 python train.py --checkpoint checkpoints/last_checkpoint.pth
 ```
 Training logs, best models (`best_model.pth`), and history (`training_history.csv`) will be saved to `outputs/`.
