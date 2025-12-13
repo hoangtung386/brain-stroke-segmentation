@@ -90,12 +90,12 @@ python download_dataset.py
 Organize your data as follows:
 ```text
 data/
-├── image/
+├── images/
 │   ├── patient_001/
 │   │   ├── 001.png
 │   │   ├── 002.png
 │   │   └── ...
-└── mask/
+└── masks/
     ├── patient_001/
     │   ├── 001.png
 │   │   ├── 002.png
