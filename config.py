@@ -52,7 +52,7 @@ class Config:
     # Loss weights
     DICE_WEIGHT = 0.5
     CE_WEIGHT = 0.5
-    ALIGNMENT_WEIGHT = 0.1
+    ALIGNMENT_WEIGHT = 0.3
     
     # W&B settings
     USE_WANDB = True
