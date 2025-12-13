@@ -56,7 +56,7 @@ class Config:
     
     # W&B settings
     USE_WANDB = True
-    WANDB_PROJECT = "Lightweight-CNN-segment-Stroke"
+    WANDB_PROJECT = "Advanced-Lightweight-CNN-segment-Stroke"
     WANDB_ENTITY = None  # Your W&B username
     
     # Scheduler parameters (using CosineAnnealingWarmRestarts now)
