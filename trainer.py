@@ -308,12 +308,32 @@ class Trainer:
                     
                     outputs = outputs.float()
                     
-                    # Compute validation loss
-                    loss, _, _, _ = self.criterion(outputs, masks, aligned_slices=None)
+                    # ============ FIX ĐÂY ============
+                    # CHỈ TÍNH DICE + CE, BỎ QUA ALIGNMENT LOSS
+                    from monai.losses import DiceCELoss
+                    val_criterion = DiceCELoss(
+                        include_background=True,
+                        to_onehot_y=True,
+                        softmax=True,
+                        lambda_dice=0.5,
+                        lambda_ce=0.5
+                    )
+                    val_criterion = val_criterion.to(self.device)
+                    
+                    if masks.ndim == 3:
+                        masks_for_loss = masks.unsqueeze(1)
+                    else:
+                        masks_for_loss = masks
+                    
+                    loss = val_criterion(outputs, masks_for_loss)
+                    # ==================================
                     
                     if not self.check_for_nan(loss, "val_loss"):
                         total_val_loss += loss.item()
                         valid_batches += 1
+                    else:
+                        print(f"Skipping batch due to NaN in val_loss")
+                        continue
                     
                     # Compute Dice metric
                     if masks.ndim == 3:
@@ -328,6 +348,7 @@ class Trainer:
                     continue
         
         if valid_batches == 0:
+            print("No valid batches in validation!")
             return 0.0, float('inf')
         
         dice_result = self.dice_metric.aggregate()
@@ -340,7 +361,7 @@ class Trainer:
         avg_val_loss = total_val_loss / valid_batches
         
         return val_dice, avg_val_loss
-    
+
     def train(self, num_epochs=None):
         """Main training loop"""
         if num_epochs is None:
