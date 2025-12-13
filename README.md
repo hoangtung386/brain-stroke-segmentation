@@ -1,117 +1,102 @@
 # Brain Stroke Segmentation - LCNN Architecture
 
-Dự án phân đoạn vùng đột quỵ não sử dụng kiến trúc LCNN kết hợp SEAN (Symmetry Enhanced Attention Network) và ResNeXt50.
+A deep learning project for brain stroke lesion segmentation using **LCNN (Local-Global Combined Network)**, incorporating **SEAN (Symmetry Enhanced Attention Network)** and **ResNeXt50**. This architecture is designed to capture both fine-grained local details and global semantic context, leveraging the inherent symmetry of the brain to improve segmentation accuracy.
 
-## Cấu trúc dự án
+![Architecture Overview](https://img.shields.io/badge/Architecture-LCNN%20%2B%20SEAN-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c)
+![CUDA](https://img.shields.io/badge/CUDA-11.8%2B-76b900)
 
-```
+## 🌟 Key Features
+
+*   **Symmetry Enhanced Attention (SEAN)**: Exploits the bilateral symmetry of the human brain. An Alignment Network aligns the input slices, allowing the model to compare features from the contralateral hemisphere to identify anomalies.
+*   **Dual-Path Architecture**:
+    *   **Local Path (SEAN)**: Processes 3D stacks of adjacent CT slices to capture volumetric context and details.
+    *   **Global Path (ResNeXt50)**: Extracts high-level semantic features to reduce false positives.
+*   **Combined Loss Function**: Optimized hybrid loss combining:
+    *   **Dice Loss**: Handles severe class imbalance (small stroke lesions).
+    *   **Cross Entropy Loss**: Ensures pixel-level classification accuracy.
+    *   **Alignment Loss**: Enforces symmetry alignment in the SEAN module.
+
+## 📂 Project Structure
+
+```bash
 brain-stroke-segmentation/
 │
-├── config.py                 # Cấu hình dự án
-├── dataset.py                # Dataset và DataLoader
-├── download_dataset.py       # Download dataset
-├── trainer.py                # Training logic
-├── train.py                  # Script chính để train
-├── evaluate.py               # Script đánh giá model
-├── setup.sh                  # Script setup
-├── requirements.txt          # Dependencies
-├── README.md                 # File này
+├── config.py                 # Central configuration
+├── dataset.py                # Dataset and DataLoader (handles 3D slice stacking)
+├── download_dataset.py       # Data download utility
+├── trainer.py                # Training loop and CombinedLoss implementation
+├── train.py                  # Main entry point for training
+├── evaluate.py               # Validation and evaluation script
+├── setup.sh                  # Application environment setup
+├── requirements.txt          # Python dependencies
 │
 ├── models/
 │   ├── __init__.py
-│   ├── components.py         # Các thành phần của model
-│   ├── sean.py               # SEAN architecture
-│   ├── global_path.py        # ResNeXt global path
-│   └── lcnn.py               # LCNN main architecture
+│   ├── lcnn.py               # LCNN Main Architecture
+│   ├── sean.py               # SEAN + Alignment Network
+│   └── global_path.py        # ResNeXt Global Path
 │
 ├── utils/
 │   ├── __init__.py
-│   ├── visualization.py      # Visualization utilities
-│   └── metrics.py            # Metrics computation
+│   ├── visualization.py      # Plotting and overlay tools
+│   └── metrics.py            # Dice, IoU, Precision metrics
 │
-├── data/                     # Thư mục chứa dữ liệu
-│   ├── image/                # CT images
-│   └── mask/                 # Segmentation masks
+├── data/                     # Dataset storage
+│   ├── images/               # CT Images
+│   └── masks/                # Segmentation Masks
 │
-├── checkpoints/              # Thư mục lưu checkpoints
-└── outputs/                  # Thư mục lưu kết quả
+├── checkpoints/              # Checkpoint storage
+└── outputs/                  # Logs, charts, and visualizations
 ```
 
-## Yêu cầu hệ thống
+## 💻 System Requirements
 
-- **GPU**: NVIDIA RTX 3090 (24GB VRAM) trở lên
-- **CUDA**: 11.7 hoặc cao hơn
-- **Python**: 3.8+
-- **RAM**: 32GB+ (khuyến nghị)
+*   **GPU**: NVIDIA RTX 3090 (24GB VRAM) or equivalent recommended.
+*   **OS**: Linux (tested on Ubuntu 20.04/22.04).
+*   **CUDA**: Version 11.7 or higher.
+*   **Python**: 3.8+.
 
-## Cài đặt
+## 🚀 Installation
 
-### 1. Clone repository
-
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/hoangtung386/brain-stroke-segmentation.git
 cd brain-stroke-segmentation
 ```
 
-### 2. Cài đặt (tự động / thủ công)
-
-1. Setup tự động (dễ nhất)
-
+### 2. Auto Setup (Recommended)
+This script sets up a virtual environment, installs PyTorch (CUDA-optimized), and dependencies.
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-2. Hoặc setup thủ công
-
+### 3. Manual Setup (Alternative)
 ```bash
-# Cài đặt new anaconda environment (Khuyên dùng)
-conda create --name stroke_seg_env python=3.11
+# Create environment
+conda create -n stroke_seg_env python=3.12 -y
 conda activate stroke_seg_env
-# hoặc tạo virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# hoặc PowerShell trên Windows
-venv\Scripts\Activate.ps1  # PowerShell
 
-# Cài đặt PyTorch cho CUDA 12.1 (Tương thích tốt nhất với đa số thư viện hiện tại)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Install PyTorch (adjust CUDA version as needed)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
-# Cài dependencies
+# Install dependencies
 pip install -r requirements.txt
-
-# Tạo thư mục dữ liệu và kết quả
-mkdir -p data/image data/mask checkpoints outputs
 ```
 
-3. Download the dataset for the project.
+## 📊 Data Preparation
 
+The model requires a specific directory structure. You can download the dataset automatically or organize your own.
+
+### Option A: Automatic Download
 ```bash
 python download_dataset.py
 ```
 
-Các options hữu ích:
-
-```bash
-# Hoặc giữ lại file ZIP sau khi giải nén
-python download_dataset.py --keep-zip
-
-# Hoặc không download lại nếu data đã tồn tại
-python download_dataset.py --no-overwrite
-
-# Hoặc custom Google Drive IDs
-python download_dataset.py --image-id YOUR_ID --mask-id YOUR_ID
-```
-
-Notes:
-- Nếu dùng Windows cmd hoặc PowerShell, thay `source` bằng `venv\\Scripts\\activate` hoặc `venv\\Scripts\\Activate.ps1`.
-- `setup.sh` (nếu có) có thể tự động tạo virtualenv và cài dependencies; file này không được thêm tự động bởi script này — bạn có thể tạo nó theo ý muốn. 
-
-## Chuẩn bị dữ liệu
-
-### Cấu trúc dữ liệu
-
-```
+### Option B: Custom Data
+Organize your data as follows:
+```text
 data/
 ├── images/
 │   ├── patient_001/
@@ -129,180 +114,78 @@ data/
     └── ...
 ```
 
-## Training
+## 🤖 Training
 
-### 1. Cấu hình W&B (optional)
+### 1. W&B Configuration (optional)
 
-Nếu muốn sử dụng Weights & Biases để tracking:
+If you want to use Weights & Biases for tracking:
 
 ```bash
 wandb login
-```
+````
 
-Hoặc đặt `USE_WANDB = False` trong `config.py`
+Alternatively, set `USE_WANDB = False` in `config.py`
 
-### 2. Chỉnh sửa hyperparameters
-
-Trong file `config.py`, bạn có thể điều chỉnh:
-
+### 2. Configuration
+Edit `config.py` to adjust hyperparameters if needed:
 ```python
-BATCH_SIZE = 32         # Giảm nếu bị out of memory
-NUM_EPOCHS = 60         # Số epochs
-LEARNING_RATE = 1e-3    # Learning rate
-NUM_WORKERS = 4         # Số workers cho DataLoader
+BATCH_SIZE = 32         # Adjust based on VRAM (use 8-16 for 3090 if OOM)
+NUM_EPOCHS = 60         # Total training epochs
+LEARNING_RATE = 1e-3    # Initial learning rate
+NORMALIZE = True        # Ensure this matches your data stats
 ```
 
-### 3. Training
+> **Tip**: Before training, verify normalization stats:
+> `python -c "from config import Config; Config.compute_normalization_stats(Config.IMAGE_DIR)"`
 
-1. Chuẩn bị
-
-- Chỉnh sửa `config.py` (điều chỉnh `BASE_PATH`, `BATCH_SIZE`, `NUM_EPOCHS`, ...)
-- Đảm bảo dữ liệu đã có trong `data/images` và `data/masks` (hoặc cập nhật `BASE_PATH`)
-
-2. Chạy training
-
+### 3. Start Training
+- Start new training
 ```bash
 python train.py
 ```
 
-3. Resume training từ checkpoint
+- Resume from checkpoint
+```bash
+python train.py --checkpoint checkpoints/last_checkpoint.pth
+```
+Training logs, best models (`best_model.pth`), and history (`training_history.csv`) will be saved to `outputs/`.
+
+### 4. Monitoring
+*   **Console**: Live metrics (Loss, Dice, LR).
+*   **Weights & Biases**: If enabled in `config.py` (`USE_WANDB = True`), run `wandb login` first.
+
+## 📉 Evaluation
+
+Evaluate the trained model on the validation set to generate metrics and visual overlays.
 
 ```bash
-# Nếu script tìm thấy checkpoint trong `checkpoints/` nó sẽ resume tự động
-# Hoặc chỉ định checkpoint cụ thể
-python train.py --checkpoint checkpoints/checkpoint.pth
+# Evaluate best model
+python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 30
+
+# Output Report: outputs/evaluation_report.txt
+# Visualizations: outputs/overlay_sample_*.png
 ```
 
-### 4. Resume training từ checkpoint
+## ⚡ Optimization Tips (RTX 3090)
 
-Script sẽ tự động resume nếu phát hiện checkpoint trong thư mục `checkpoints/`
+*   **Mixed Precision**: The trainer uses `torch.cuda.amp` by default for faster training and lower memory usage.
+*   **Data Loading**: Set `NUM_WORKERS = 4` or `8` in `config.py` for optimal data throughput. `PIN_MEMORY = True` is enabled by default.
+*   **Out of Memory (OOM)**:
+    *   Reduce `BATCH_SIZE` to 16, 8, or 4.
+    *   Reduce `IMAGE_SIZE` to `(256, 256)` in `config.py`.
 
-### 5. Monitor training
+## 🛠️ Troubleshooting
 
-- **Console**: Xem metrics trực tiếp trên terminal
-- **W&B**: Truy cập dashboard tại https://wandb.ai
-- **CSV**: File `outputs/training_history.csv`
+| Issue | Possible Cause | Solution |
+| :--- | :--- | :--- |
+| **Loss is NaN** | Exploding gradients or bad normalization | Check dataset stats; enable gradient clipping (default in trainer). |
+| **Dice Score ~0** | Model learning only background | Check class weights in `trainer.py`; verify mask values are 0/1. |
+| **Dimension Errors** | Mismatch in 2D vs 3D shapes | Architecture fix applied; `dataset.py` now handles 3D stacks correctly. |
+| **CUDA OOM** | Batch size too large | Decrease `BATCH_SIZE`; use `nvidia-smi` to check VRAM. |
 
-## Đánh giá model
+## 📄 License
+This project is licensed under the MIT License.
 
-### 6. Evaluation
-
-Đánh giá best model:
-
-```bash
-python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 5
-```
-
-Hoặc đánh giá checkpoint cụ thể:
-
-```bash
-python evaluate.py --checkpoint checkpoints/checkpoint.pth
-```
-
-## Tối ưu cho RTX 3090
-
-### Memory optimization
-
-1. **Giảm batch size** nếu gặp OOM:
-```python
-BATCH_SIZE = 4  # trong config.py
-```
-
-2. **Gradient accumulation**:
-```python
-# Thêm vào trainer.py
-accumulation_steps = 4
-for i, (images, masks) in enumerate(train_loader):
-    loss = loss / accumulation_steps
-    loss.backward()
-    
-    if (i + 1) % accumulation_steps == 0:
-        optimizer.step()
-        optimizer.zero_grad()
-```
-
-3. **Mixed precision training**:
-```python
-from torch.cuda.amp import autocast, GradScaler
-
-scaler = GradScaler()
-
-with autocast():
-    outputs = model(images)
-    loss = criterion(outputs, masks)
-
-scaler.scale(loss).backward()
-scaler.step(optimizer)
-scaler.update()
-```
-
-### Speed optimization
-
-1. **Tăng num_workers**:
-```python
-NUM_WORKERS = 8  # Tùy CPU của bạn
-```
-
-2. **Pin memory**:
-```python
-PIN_MEMORY = True
-PERSISTENT_WORKERS = True
-```
-
-3. **Benchmark mode**:
-```python
-torch.backends.cudnn.benchmark = True
-```
-
-## Troubleshooting
-
-### Out of Memory (OOM)
-
-```python
-# Giảm batch size
-BATCH_SIZE = 4
-
-# Hoặc giảm image size
-IMAGE_SIZE = (256, 256)
-
-# Clear cache
-import gc
-gc.collect()
-torch.cuda.empty_cache()
-```
-
-### Slow data loading
-
-```python
-# Tăng số workers
-NUM_WORKERS = 8
-
-# Sử dụng caching
-CACHE_RATE = 0.5  # Cache 50% dữ liệu vào RAM
-```
-
-### CUDA out of memory
-
-```bash
-# Kiểm tra GPU usage
-nvidia-smi
-
-# Kill các process đang dùng GPU
-kill -9 <PID>
-```
-
-## Kết quả
-
-Model sẽ lưu:
-- **Checkpoints**: `checkpoints/checkpoint.pth`
-- **Best model**: `checkpoints/best_model.pth`
-- **Training history**: `outputs/training_history.csv`
-- **Visualizations**: `outputs/*.png`
-
-## License
-
-MIT License
-
-## Liên hệ
-
-Nếu có vấn đề, vui lòng tạo issue trên GitHub hoặc liên hệ: levuhoangtung1542003@gmail.com
+---
+## ✉️ Contact
+If you encounter any issues, please create an issue on **GitHub** or contact: levuhoangtung1542003@gmail.com 

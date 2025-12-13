@@ -84,9 +84,16 @@ def visualize_overlay_predictions(model, val_loader, device, class_names,
             preds = torch.argmax(outputs, dim=1)
             
             # Convert to numpy
-            img_np = images[0, 0].cpu().numpy()  # First channel
+            # Use center slice for image (images is B, T, H, W)
+            center_slice_idx = images.shape[1] // 2
+            img_np = images[0, center_slice_idx].cpu().numpy()
+            
             pred_np = preds[0].cpu().numpy()
             mask_np = masks[0].cpu().numpy()
+            
+            # Ensure mask is 2D (H, W)
+            if mask_np.ndim == 3 and mask_np.shape[0] == 1:
+                mask_np = mask_np.squeeze(0)
             
             # Create figure
             fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -156,9 +163,16 @@ def plot_per_class_comparison(model, val_loader, device, class_names,
             preds = torch.argmax(outputs, dim=1)
             
             # Convert to numpy
-            img_np = images[0, 0].cpu().numpy()
+            # Use center slice for image
+            center_slice_idx = images.shape[1] // 2
+            img_np = images[0, center_slice_idx].cpu().numpy()
+            
             pred_np = preds[0].cpu().numpy()
             mask_np = masks[0].cpu().numpy()
+            
+            # Ensure mask is 2D (H, W)
+            if mask_np.ndim == 3 and mask_np.shape[0] == 1:
+                mask_np = mask_np.squeeze(0)
             
             # Create figure with per-class comparison
             fig, axes = plt.subplots(2, num_classes, figsize=(4*num_classes, 8))

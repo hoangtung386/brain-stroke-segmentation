@@ -69,33 +69,11 @@ fi
 echo -e "\n${YELLOW}Installing other dependencies...${NC}"
 pip install -r requirements.txt
 
-# Create necessary directories
-echo -e "\n${YELLOW}Creating project directories...${NC}"
-mkdir -p data/image data/mask
-mkdir -p checkpoints
-mkdir -p outputs
-mkdir -p logs
-echo -e "${GREEN}Directories created.${NC}"
-
-# Verify installation
-echo -e "\n${YELLOW}Verifying installation...${NC}"
-python3 << END
-import torch
-print(f"PyTorch version: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    print(f"CUDA version: {torch.version.cuda}")
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-END
-
 # Check if data directory is empty
 echo -e "\n${YELLOW}Checking data directory...${NC}"
-if [ -z "$(ls -A data/image)" ]; then
-    echo -e "${YELLOW}Data directory is empty.${NC}"
-    echo -e "Please copy your data to:"
-    echo -e "  - Images: ${GREEN}data/image/${NC}"
-    echo -e "  - Masks:  ${GREEN}data/mask/${NC}"
+if [ ! -d "data/images" ] || [ -z "$(ls -A data/images 2>/dev/null)" ]; then
+    echo -e "${YELLOW}Data directory not found or empty.${NC}"
+    echo -e "Please run: ${GREEN}python download_dataset.py${NC}"
 else
     echo -e "${GREEN}Data found in data directory.${NC}"
 fi
