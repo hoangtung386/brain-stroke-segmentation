@@ -67,7 +67,7 @@ chmod +x setup.sh
 ### 3. Manual Setup (Alternative)
 ```bash
 # Create environment
-conda create -n stroke_seg_env python=3.11 -y
+conda create -n stroke_seg_env python=3.12 -y
 conda activate stroke_seg_env
 
 # Install PyTorch (adjust CUDA version as needed)
@@ -75,9 +75,6 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
 # Install dependencies
 pip install -r requirements.txt
-
-# data directories
-mkdir -p data/image data/mask checkpoints outputs
 ```
 
 ## 📊 Data Preparation
@@ -101,15 +98,16 @@ data/
 └── mask/
     ├── patient_001/
     │   ├── 001.png
+│   │   ├── 002.png
     │   └── ...
 ```
 
-## 🏋️ Training
+## Training
 
 ### 1. Configuration
 Edit `config.py` to adjust hyperparameters if needed:
 ```python
-BATCH_SIZE = 32         # Adjust based on VRAM (use 4-8 for 3090 if OOM)
+BATCH_SIZE = 32         # Adjust based on VRAM (use 8-16 for 3090 if OOM)
 NUM_EPOCHS = 60         # Total training epochs
 LEARNING_RATE = 1e-3    # Initial learning rate
 NORMALIZE = True        # Ensure this matches your data stats
@@ -138,7 +136,7 @@ Evaluate the trained model on the validation set to generate metrics and visual 
 
 ```bash
 # Evaluate best model
-python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 5
+python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 30
 
 # Output Report: outputs/evaluation_report.txt
 # Visualizations: outputs/overlay_sample_*.png
