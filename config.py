@@ -1,5 +1,5 @@
 """
-Fixed Configuration file for Brain Stroke Segmentation project
+FIXED Configuration - Normalization values corrected
 """
 import os
 
@@ -26,46 +26,46 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 8
+    BATCH_SIZE = 4  # ← Giảm từ 8 xuống 4 để ổn định hơn
     NUM_EPOCHS = 300
-    LEARNING_RATE = 1e-3
+    LEARNING_RATE = 5e-4  # ← Giảm từ 1e-3 để tránh gradient explosion
     
     # DataLoader parameters
     NUM_WORKERS = 4
     CACHE_RATE = 0
-    PIN_MEMORY = True  # Changed to True for better performance
+    PIN_MEMORY = True
     PERSISTENT_WORKERS = True
     
     # Model architecture
-    T = 1  # Number of adjacent slices (will use 2T+1 = 3 slices total)
+    T = 1
     NUM_PARTITIONS_H = 4
     NUM_PARTITIONS_W = 4
     GLOBAL_IMPACT = 0.3
     LOCAL_IMPACT = 0.7
     
-    # Normalization parameters (grayscale CT)
-    # These should be computed from your dataset
-    # For now, using standard values
-    MEAN = [55.1385]  # Single channel for grayscale
-    STD = [46.2948]   # Single channel for grayscale
+    # NORMALIZED VALUES (after ToTensor)
+    # Original: 55.1385 ± 46.2948 (range 0-255)
+    # After ToTensor (÷255): values in [0, 1]
+    MEAN = [55.1385 / 255.0]  # = 0.2162
+    STD = [46.2948 / 255.0]   # = 0.1841
     
-    # Loss weights
+    # Loss weights - GIẢM alignment weight để ổn định
     DICE_WEIGHT = 0.5
     CE_WEIGHT = 0.5
-    ALIGNMENT_WEIGHT = 0.3
+    ALIGNMENT_WEIGHT = 0.1  # ← Giảm từ 0.3 xuống 0.1
     
     # W&B settings
     USE_WANDB = True
     WANDB_PROJECT = "Advanced-Lightweight-CNN-segment-Stroke"
-    WANDB_ENTITY = None  # Your W&B username
+    WANDB_ENTITY = None
     
-    # Scheduler parameters (using CosineAnnealingWarmRestarts now)
+    # Scheduler parameters
     SCHEDULER_T0 = 10
     SCHEDULER_T_MULT = 2
     SCHEDULER_ETA_MIN = 1e-6
     
-    # Gradient clipping
-    GRAD_CLIP_NORM = 1.0
+    # Gradient clipping - TĂNG LÊN để control gradient
+    GRAD_CLIP_NORM = 0.5  # ← Giảm từ 1.0 xuống 0.5
     
     # Early stopping
     EARLY_STOPPING_PATIENCE = 20
@@ -97,41 +97,4 @@ class Config:
         os.makedirs(cls.OUTPUT_DIR, exist_ok=True)
         os.makedirs(cls.CHECKPOINT_DIR, exist_ok=True)
         print(f"Created directories: {cls.OUTPUT_DIR}, {cls.CHECKPOINT_DIR}")
-    
-    @classmethod
-    def compute_normalization_stats(cls, image_dir):
-        """
-        Compute mean and std from dataset for normalization
-        Run this once before training to get proper values
-        """
-        from PIL import Image
-        import numpy as np
-        from tqdm import tqdm
         
-        print("Computing normalization statistics...")
-        
-        pixel_values = []
-        
-        # Walk through all images
-        for root, dirs, files in os.walk(image_dir):
-            for file in tqdm(files):
-                if file.endswith('.png'):
-                    img_path = os.path.join(root, file)
-                    img = Image.open(img_path).convert('L')
-                    img_array = np.array(img, dtype=np.float32) / 255.0
-                    pixel_values.append(img_array.flatten())
-        
-        # Compute statistics
-        all_pixels = np.concatenate(pixel_values)
-        mean = all_pixels.mean()
-        std = all_pixels.std()
-        
-        print(f"\nDataset Statistics:")
-        print(f"  Mean: {mean:.6f}")
-        print(f"  Std:  {std:.6f}")
-        print(f"\nUpdate config.py with:")
-        print(f"  MEAN = [{mean:.6f}]")
-        print(f"  STD = [{std:.6f}]")
-        
-        return mean, std
-    
