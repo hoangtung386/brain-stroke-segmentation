@@ -161,28 +161,29 @@ class Trainer:
             
             self.optimizer.zero_grad()
             
-            # CRITICAL FIX: All forward pass AND loss computation must be inside autocast
             with autocast():
                 # Forward pass with alignment
                 outputs, aligned_slices, alignment_params = self.model(images, return_alignment=True)
-                
-                # Prepare original slices
-                original_slices = [
-                    images[:, i:i+1, :, :].float()
-                    for i in range(images.shape[1])
-                ]
-
-                # Fix for NaN: Ensure float32 for loss calculation
-                outputs = outputs.float()
-                if aligned_slices:
-                    aligned_slices = [s.float() for s in aligned_slices]
-                if alignment_params:
-                    alignment_params = [p.float() for p in alignment_params]
-                
-                # Compute loss (now properly handled inside autocast)
-                loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
-                    outputs, masks, aligned_slices, alignment_params, original_slices
-                )
+            
+            # --- Move Loss OUTSIDE Autocast for Stability ---
+            # Cast outputs to float32 to prevent NaN/Inf in loss
+            outputs = outputs.float()
+            
+            # Prepare slices in float32
+            original_slices = [
+                images[:, i:i+1, :, :].float()
+                for i in range(images.shape[1])
+            ]
+            
+            if aligned_slices is not None:
+                aligned_slices = [s.float() for s in aligned_slices]
+            if alignment_params is not None:
+                alignment_params = [p.float() for p in alignment_params]
+            
+            # Compute loss in float32
+            loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
+                outputs, masks, aligned_slices, alignment_params, original_slices
+            )
             
             # Backward pass with scaler
             self.scaler.scale(loss).backward()
@@ -242,13 +243,13 @@ class Trainer:
                 # Use autocast for validation too
                 with autocast():
                     outputs = self.model(images)
-                    
-                    # Fix for NaN: Ensure float32 for loss calculation
-                    outputs = outputs.float()
-
-                    # Compute validation loss
-                    loss, _, _, _ = self.criterion(outputs, masks, aligned_slices=None)
-                    total_val_loss += loss.item()
+                
+                # Move validation loss outside autocast
+                outputs = outputs.float()
+                
+                # Compute validation loss
+                loss, _, _, _ = self.criterion(outputs, masks, aligned_slices=None)
+                total_val_loss += loss.item()
                 
                 # Compute Dice metric (outside autocast for stability)
                 if masks.ndim == 3:  # (B, H, W)
