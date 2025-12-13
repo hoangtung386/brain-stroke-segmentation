@@ -266,8 +266,7 @@ class Trainer:
                 loss, _, _ = self.criterion(outputs, masks, aligned_slices=None)
                 total_val_loss += loss.item()
                 
-                # Compute Dice metric - FIX HERE
-                # Add unsqueeze to match expected shape for masks
+                # Compute Dice metric
                 if masks.ndim == 3:  # (B, H, W)
                     masks_for_metric = masks.unsqueeze(1)  # (B, 1, H, W)
                 else:
@@ -275,8 +274,15 @@ class Trainer:
                 
                 self.dice_metric(y_pred=outputs, y=masks_for_metric)
         
-        # FIX: Get scalar value correctly
-        val_dice = self.dice_metric.aggregate().item()
+        # FIX: Handle both tensor and tuple returns
+        dice_result = self.dice_metric.aggregate()
+        
+        # Convert to scalar properly
+        if isinstance(dice_result, (list, tuple)):
+            val_dice = dice_result[0].item() if len(dice_result) > 0 else 0.0
+        else:
+            val_dice = dice_result.item()
+        
         avg_val_loss = total_val_loss / len(self.val_loader)
         
         return val_dice, avg_val_loss
