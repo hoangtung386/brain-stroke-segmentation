@@ -58,10 +58,10 @@ class Config:
     DETECT_ANOMALY = False    # Set True for debugging
 
     # Loss Weights
-    DICE_WEIGHT = 1.0
-    CE_WEIGHT = 1.0           # Restored CE_WEIGHT
+    DICE_WEIGHT = 0.5
+    CE_WEIGHT = 0.5           # Restored CE_WEIGHT
     FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.0    # Temporarily disabled from 0.3
+    ALIGNMENT_WEIGHT = 0.1    # Temporarily disabled from 0.3
     PERCEPTUAL_WEIGHT = 0.1   
     
     # W&B settings
