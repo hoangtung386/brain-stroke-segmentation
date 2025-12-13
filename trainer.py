@@ -34,7 +34,6 @@ class Trainer:
         self.model.to(self.device)
         
         # Loss function
-        # Loss function
         self.criterion = ImprovedCombinedLoss(
             num_classes=config.NUM_CLASSES,
             dice_weight=config.DICE_WEIGHT,
