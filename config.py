@@ -26,7 +26,7 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 4
+    BATCH_SIZE = 8
     NUM_EPOCHS = 300
     LEARNING_RATE = 1e-3
     
