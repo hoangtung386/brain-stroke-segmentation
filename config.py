@@ -59,9 +59,11 @@ class Config:
 
     # Loss Weights
     DICE_WEIGHT = 1.0
+    CE_WEIGHT = 1.0           # Restored CE_WEIGHT
     FOCAL_WEIGHT = 1.0
     ALIGNMENT_WEIGHT = 0.0    # Temporarily disabled from 0.3
     PERCEPTUAL_WEIGHT = 0.1   
+    
     # W&B settings
     USE_WANDB = True
     WANDB_PROJECT = "Advanced-Lightweight-CNN-segment-Stroke"
@@ -71,9 +73,6 @@ class Config:
     SCHEDULER_T0 = 10
     SCHEDULER_T_MULT = 2
     SCHEDULER_ETA_MIN = 1e-6
-    
-    # Gradient clipping - TĂNG LÊN để control gradient
-    GRAD_CLIP_NORM = 1.0
     
     # Early stopping
     EARLY_STOPPING_PATIENCE = 20
