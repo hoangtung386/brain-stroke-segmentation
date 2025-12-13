@@ -235,10 +235,10 @@ def check_loss():
     print_header("Checking Loss Function")
     
     try:
-        from trainer import CombinedLoss
+        from utils.improved_alignment_loss import ImprovedCombinedLoss
         from config import Config
         
-        loss_fn = CombinedLoss(
+        loss_fn = ImprovedCombinedLoss(
             num_classes=Config.NUM_CLASSES,
             dice_weight=0.5,
             ce_weight=0.5,
@@ -261,7 +261,13 @@ def check_loss():
         # Create dummy aligned slices
         aligned_slices = [torch.randn(B, 1, H, W).to(device) for _ in range(3)]
         
-        total_loss, dice_ce, alignment = loss_fn(outputs, targets, aligned_slices)
+        # ImprovedCombinedLoss returns 4 values
+        total_loss, dice_ce, alignment, details = loss_fn(
+            outputs, targets, 
+            aligned_slices=aligned_slices, 
+            alignment_params=[torch.randn(B, 3).to(device) for _ in range(3)],
+            original_slices=[torch.randn(B, 1, H, W).to(device) for _ in range(3)]
+        )
         
         print_success("Loss computation successful")
         print(f"  Total loss: {total_loss.item():.4f}")

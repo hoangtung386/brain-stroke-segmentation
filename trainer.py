@@ -147,6 +147,7 @@ class Trainer:
     def train_epoch(self, epoch):
         """Train one epoch with NaN detection"""
         self.model.train()
+        self.nan_count = 0  # Reset NaN counter at start of epoch
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
