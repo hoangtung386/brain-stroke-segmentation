@@ -102,7 +102,7 @@ data/
     │   └── ...
 ```
 
-## Training
+## 🤖 Training
 
 ### 1. Configuration
 Edit `config.py` to adjust hyperparameters if needed:
