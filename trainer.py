@@ -38,7 +38,7 @@ class Trainer:
             num_classes=config.NUM_CLASSES,
             dice_weight=0.5,
             ce_weight=0.5,
-            alignment_weight=0.1,  # ← ĐÃ GIẢM trong config
+            alignment_weight=0.1,
             use_alignment=True
         )
         self.criterion.to(self.device)
@@ -47,13 +47,13 @@ class Trainer:
         self.optimizer = optim.AdamW(
             model.parameters(), 
             lr=config.LEARNING_RATE,
-            weight_decay=1e-4,  # ← Tăng từ 1e-5
+            weight_decay=1e-4,
             betas=(0.9, 0.999),
             eps=1e-8
         )
         
         # AMP Scaler với init_scale thấp hơn
-        self.scaler = GradScaler(init_scale=512)  # ← Giảm từ 2^16
+        self.scaler = GradScaler(init_scale=512)
         
         # Scheduler
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -309,8 +309,7 @@ class Trainer:
                     
                     outputs = outputs.float()
                     
-                    # ============ FIX ĐÂY ============
-                    # CHỈ TÍNH DICE + CE, BỎ QUA ALIGNMENT LOSS
+                    # Chỉ tính Dice + CE, bỏ qua Alignment Loss
                     from monai.losses import DiceCELoss
                     val_criterion = DiceCELoss(
                         include_background=True,
@@ -327,7 +326,6 @@ class Trainer:
                         masks_for_loss = masks
                     
                     loss = val_criterion(outputs, masks_for_loss)
-                    # ==================================
                     
                     if not self.check_for_nan(loss, "val_loss"):
                         total_val_loss += loss.item()
