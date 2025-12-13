@@ -1,5 +1,5 @@
 """
-Model components for SEAN architecture
+Components - AlignmentNetwork with dynamic sizing
 """
 import torch
 import torch.nn as nn
@@ -8,36 +8,69 @@ import torch.nn.functional as F
 
 class AlignmentNetwork(nn.Module):
     """
-    Alignment Network based on symmetry
-    Input: CT slice (1, H, W)
-    Output: Transformation parameters (angle, shift_x, shift_y)
+    FIXED Alignment Network - Dynamic feature size calculation
     """
-    def __init__(self):
+    def __init__(self, input_size=(512, 512)):
         super(AlignmentNetwork, self).__init__()
         
+        self.input_size = input_size
+        
         self.conv1 = nn.Conv2d(1, 32, kernel_size=7, padding=3)
+        self.bn1 = nn.BatchNorm2d(32)  # ← THÊM BatchNorm
         self.pool1 = nn.MaxPool2d(2, 2)
         
         self.conv2 = nn.Conv2d(32, 32, kernel_size=5, padding=2)
+        self.bn2 = nn.BatchNorm2d(32)  # ← THÊM BatchNorm
         self.pool2 = nn.MaxPool2d(2, 2)
         
-        # Assuming input size is (1, 512, 512)
-        # After pool2: (32, 128, 128)
-        flattened_size = 32 * 128 * 128
+        # ============================================
+        # FIX: Tính toán ĐỘNG kích thước sau pooling
+        # ============================================
+        H, W = input_size
+        H_after_pool = H // 4  # 2 pooling layers
+        W_after_pool = W // 4
         
-        self.fc = nn.Linear(flattened_size, 3)  # [angle, shift_x, shift_y]
+        flattened_size = 32 * H_after_pool * W_after_pool
+        
+        # Adaptive pooling để đảm bảo kích thước cố định
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((16, 16))  # Output 16x16
+        flattened_size = 32 * 16 * 16  # = 8,192
+        
+        self.fc1 = nn.Linear(flattened_size, 128)  # ← Thêm hidden layer
+        self.dropout = nn.Dropout(0.3)
+        self.fc2 = nn.Linear(128, 3)  # [angle, shift_x, shift_y]
         
         # Initialize to output near identity transform
-        self.fc.weight.data.zero_()
-        self.fc.bias.data.zero_()
+        self.fc2.weight.data.zero_()
+        self.fc2.bias.data.zero_()
     
     def forward(self, x):
-        x = F.relu(self.conv1(x))
+        """
+        Args:
+            x: (B, 1, H, W)
+        Returns:
+            params: (B, 3) - [angle, shift_x, shift_y]
+        """
+        x = F.relu(self.bn1(self.conv1(x)))
         x = self.pool1(x)
-        x = F.relu(self.conv2(x))
+        x = F.relu(self.bn2(self.conv2(x)))
         x = self.pool2(x)
+        
+        # Adaptive pooling để đảm bảo kích thước
+        x = self.adaptive_pool(x)
+        
         x = x.view(x.size(0), -1)
-        params = self.fc(x)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        params = self.fc2(x)
+        
+        # CLIP giá trị để tránh transformation quá lớn
+        angle = torch.clamp(params[:, 0], -0.2, 0.2)  # ±11 degrees
+        shift_x = torch.clamp(params[:, 1], -0.1, 0.1)
+        shift_y = torch.clamp(params[:, 2], -0.1, 0.1)
+        
+        params = torch.stack([angle, shift_x, shift_y], dim=1)
+        
         return params
     
     def get_transform_matrix(self, params, size):
@@ -50,7 +83,7 @@ class AlignmentNetwork(nn.Module):
         cos_a = torch.cos(angle)
         sin_a = torch.sin(angle)
         
-        theta = torch.zeros(B, 2, 3, device=params.device)
+        theta = torch.zeros(B, 2, 3, device=params.device, dtype=params.dtype)
         theta[:, 0, 0] = cos_a
         theta[:, 0, 1] = -sin_a
         theta[:, 0, 2] = shift_x
@@ -64,28 +97,8 @@ class AlignmentNetwork(nn.Module):
         """Apply transformation to input"""
         theta = self.get_transform_matrix(params, x.size())
         grid = F.affine_grid(theta, x.size(), align_corners=False)
-        x_transformed = F.grid_sample(x, grid, align_corners=False)
+        x_transformed = F.grid_sample(x, grid, align_corners=False, mode='bilinear')
         return x_transformed, theta
-    
-    def inverse_transform(self, x, theta):
-        """Apply inverse transformation"""
-        theta_inv = torch.zeros_like(theta)
-        
-        cos_a = theta[:, 0, 0]
-        sin_a = theta[:, 1, 0]
-        tx = theta[:, 0, 2]
-        ty = theta[:, 1, 2]
-        
-        theta_inv[:, 0, 0] = cos_a
-        theta_inv[:, 0, 1] = sin_a
-        theta_inv[:, 0, 2] = -cos_a * tx - sin_a * ty
-        theta_inv[:, 1, 0] = -sin_a
-        theta_inv[:, 1, 1] = cos_a
-        theta_inv[:, 1, 2] = sin_a * tx - cos_a * ty
-        
-        grid = F.affine_grid(theta_inv, x.size(), align_corners=False)
-        x_restored = F.grid_sample(x, grid, align_corners=False)
-        return x_restored
 
 
 def alignment_loss(x_aligned, x_original):
@@ -112,6 +125,9 @@ class SymmetryEnhancedAttention(nn.Module):
         self.g = nn.Conv2d(in_channels, in_channels // 2, 1)
         self.h = nn.Conv2d(in_channels, in_channels // 2, 1)
         self.out_conv = nn.Conv2d(in_channels, in_channels, 1)
+        
+        # ← THÊM normalization
+        self.norm = nn.LayerNorm(in_channels)
     
     def forward(self, x_slices):
         """
@@ -138,7 +154,6 @@ class SymmetryEnhancedAttention(nn.Module):
                 attention_sum = 0
                 
                 for t, x_slice in enumerate(x_slices):
-                    # Self-attention
                     x_slice_partition = x_slice[:, :, h_start:h_end, w_start:w_end]
                     keys = self.phi(x_slice_partition).view(B, self.d, -1)
                     values = self.g(x_slice_partition).view(B, C//2, -1)
@@ -148,7 +163,6 @@ class SymmetryEnhancedAttention(nn.Module):
                     attn = F.softmax(attn, dim=-1)
                     out_self = torch.bmm(values, attn.transpose(1, 2))
                     
-                    # Symmetry-attention
                     q_mirror = self.Q - 1 - q
                     w_start_mirror = q_mirror * W_prime
                     w_end_mirror = (q_mirror + 1) * W_prime
@@ -168,12 +182,17 @@ class SymmetryEnhancedAttention(nn.Module):
                 attention_sum = attention_sum.view(B, C, H_prime, W_prime)
                 output[:, :, h_start:h_end, w_start:w_end] = attention_sum
         
-        output = self.out_conv(output) + x_center
+        # Apply normalization
+        output_normalized = output.permute(0, 2, 3, 1)  # (B, H, W, C)
+        output_normalized = self.norm(output_normalized)
+        output_normalized = output_normalized.permute(0, 3, 1, 2)  # (B, C, H, W)
+        
+        output = self.out_conv(output_normalized) + x_center
         return output
 
 
 class EncoderBlock3D(nn.Module):
-    """3D Encoder Block"""
+    """3D Encoder Block with BatchNorm"""
     
     def __init__(self, in_channels, out_channels):
         super(EncoderBlock3D, self).__init__()
@@ -182,9 +201,13 @@ class EncoderBlock3D(nn.Module):
         self.bn1 = nn.BatchNorm3d(out_channels)
         self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm3d(out_channels)
+        
+        # ← THÊM Dropout để regularization
+        self.dropout = nn.Dropout3d(0.1)
     
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
+        x = self.dropout(x)
         x = F.relu(self.bn2(self.conv2(x)))
         
         depth = x.size(2)
