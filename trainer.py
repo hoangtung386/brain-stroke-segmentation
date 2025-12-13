@@ -52,6 +52,10 @@ class CombinedLoss(nn.Module):
             total_loss, dice_ce_loss, alignment_loss
         """
         # Main segmentation loss
+        # Ensure targets has channel dimension (B, 1, H, W) for to_onehot_y=True
+        if targets.ndim == 3:
+            targets = targets.unsqueeze(1)
+            
         dice_ce_loss = self.dice_ce(outputs, targets)
         
         total_loss = dice_ce_loss
