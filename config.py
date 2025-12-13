@@ -26,9 +26,9 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 4  # ← Giảm từ 8 xuống 4 để ổn định hơn
+    BATCH_SIZE = 8  # Giảm xuống 8 để ổn định hơn
     NUM_EPOCHS = 300
-    LEARNING_RATE = 5e-4  # ← Giảm từ 1e-3 để tránh gradient explosion
+    LEARNING_RATE = 5e-4  # Giảm từ 1e-3 để tránh gradient explosion
     
     # DataLoader parameters
     NUM_WORKERS = 4
@@ -52,7 +52,7 @@ class Config:
     # Loss weights - GIẢM alignment weight để ổn định
     DICE_WEIGHT = 0.5
     CE_WEIGHT = 0.5
-    ALIGNMENT_WEIGHT = 0.1  # ← Giảm từ 0.3 xuống 0.1
+    ALIGNMENT_WEIGHT = 0.3 
     
     # W&B settings
     USE_WANDB = True
@@ -65,7 +65,7 @@ class Config:
     SCHEDULER_ETA_MIN = 1e-6
     
     # Gradient clipping - TĂNG LÊN để control gradient
-    GRAD_CLIP_NORM = 0.5  # ← Giảm từ 1.0 xuống 0.5
+    GRAD_CLIP_NORM = 1.0
     
     # Early stopping
     EARLY_STOPPING_PATIENCE = 20
