@@ -1,14 +1,12 @@
 # Brain Stroke Segmentation - LCNN Architecture
 
-A deep learning project for brain stroke lesion segmentation using **LCNN (Local-Global Combined Network)**, incorporating **SEAN (Symmetry Enhanced Attention Network)** and **ResNeXt50**. This architecture is designed to capture both fine-grained local details and global semantic context, leveraging the inherent symmetry of the brain to improve segmentation accuracy.
+A deep learning project for brain stroke lesion segmentation using **LCNN (Local-Global Combined Neural Network)**, incorporating **SEAN (Symmetry Enhanced Attention Network)** and **ResNeXt50**. This architecture is designed to capture both fine-grained local details and global semantic context, leveraging the inherent symmetry of the brain to improve segmentation accuracy.
 
 ![Architecture Overview](https://img.shields.io/badge/Architecture-LCNN%20%2B%20SEAN-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c)
 ![CUDA](https://img.shields.io/badge/CUDA-11.8%2B-76b900)
 
-## 🌟 Key Features
-
-## 🏗️ Model Architecture
+## 🌟 Model Architecture
 
 ![Architectural Model](./Architectural_model.png)
 
