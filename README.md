@@ -104,7 +104,17 @@ data/
 
 ## 🤖 Training
 
-### 1. Configuration
+### 1. W&B Configuration (optional)
+
+If you want to use Weights & Biases for tracking:
+
+```bash
+wandb login
+````
+
+Alternatively, set `USE_WANDB = False` in `config.py`
+
+### 2. Configuration
 Edit `config.py` to adjust hyperparameters if needed:
 ```python
 BATCH_SIZE = 32         # Adjust based on VRAM (use 8-16 for 3090 if OOM)
@@ -116,7 +126,7 @@ NORMALIZE = True        # Ensure this matches your data stats
 > **Tip**: Before training, verify normalization stats:
 > `python -c "from config import Config; Config.compute_normalization_stats(Config.IMAGE_DIR)"`
 
-### 2. Start Training
+### 3. Start Training
 ```bash
 # Start new training
 python train.py
@@ -126,7 +136,7 @@ python train.py --checkpoint checkpoints/last_checkpoint.pth
 ```
 Training logs, best models (`best_model.pth`), and history (`training_history.csv`) will be saved to `outputs/`.
 
-### 3. Monitoring
+### 4. Monitoring
 *   **Console**: Live metrics (Loss, Dice, LR).
 *   **Weights & Biases**: If enabled in `config.py` (`USE_WANDB = True`), run `wandb login` first.
 
