@@ -1,10 +1,10 @@
 """
-Improved Alignment Loss for SEAN Architecture
+Improved Alignment Loss for SEAN Architecture - FIXED for AMP
 
 Fixes:
-1. Proper symmetry loss calculation
-2. Regularization to prevent trivial solutions
-3. Multi-scale loss for better alignment
+1. Proper dtype handling for mixed precision training
+2. Sobel filters match input tensor dtype
+3. Edge detection compatible with autocast
 """
 import torch
 import torch.nn as nn
@@ -17,6 +17,8 @@ class ImprovedAlignmentLoss(nn.Module):
     1. Symmetry Loss: Penalizes asymmetry after alignment
     2. Regularization Loss: Prevents extreme transformations
     3. Edge Consistency Loss: Ensures edges are preserved
+    
+    FIXED: Proper dtype handling for AMP (mixed precision)
     """
     
     def __init__(self, symmetry_weight=1.0, reg_weight=0.1, edge_weight=0.5):
@@ -26,25 +28,34 @@ class ImprovedAlignmentLoss(nn.Module):
         self.reg_weight = reg_weight
         self.edge_weight = edge_weight
         
-        # Sobel filters for edge detection
-        self.register_buffer('sobel_x', torch.FloatTensor([
+        # Sobel filters for edge detection - will be cast to input dtype
+        sobel_x = torch.FloatTensor([
             [-1, 0, 1],
             [-2, 0, 2],
             [-1, 0, 1]
-        ]).unsqueeze(0).unsqueeze(0))
+        ]).unsqueeze(0).unsqueeze(0)
         
-        self.register_buffer('sobel_y', torch.FloatTensor([
+        sobel_y = torch.FloatTensor([
             [-1, -2, -1],
             [0, 0, 0],
             [1, 2, 1]
-        ]).unsqueeze(0).unsqueeze(0))
+        ]).unsqueeze(0).unsqueeze(0)
+        
+        self.register_buffer('sobel_x', sobel_x)
+        self.register_buffer('sobel_y', sobel_y)
     
     def compute_edges(self, x):
-        """Compute edge map using Sobel filters"""
-        # x: (B, 1, H, W)
-        edge_x = F.conv2d(x, self.sobel_x, padding=1)
-        edge_y = F.conv2d(x, self.sobel_y, padding=1)
-        edges = torch.sqrt(edge_x**2 + edge_y**2)
+        """
+        Compute edge map using Sobel filters
+        FIXED: Cast Sobel filters to match input dtype (for AMP)
+        """
+        # Cast Sobel filters to match input dtype and device
+        sobel_x = self.sobel_x.to(dtype=x.dtype, device=x.device)
+        sobel_y = self.sobel_y.to(dtype=x.dtype, device=x.device)
+        
+        edge_x = F.conv2d(x, sobel_x, padding=1)
+        edge_y = F.conv2d(x, sobel_y, padding=1)
+        edges = torch.sqrt(edge_x**2 + edge_y**2 + 1e-8)  # Add epsilon for stability
         return edges
     
     def symmetry_loss(self, aligned_slice):
@@ -95,6 +106,7 @@ class ImprovedAlignmentLoss(nn.Module):
     def edge_consistency_loss(self, aligned_slice, original_slice):
         """
         Ensure edges are preserved after alignment
+        FIXED: Proper dtype handling
         
         Args:
             aligned_slice: (B, 1, H, W) - Aligned image
@@ -103,7 +115,7 @@ class ImprovedAlignmentLoss(nn.Module):
         Returns:
             Edge consistency loss
         """
-        # Compute edges
+        # Compute edges - sobel filters will be cast automatically
         edges_aligned = self.compute_edges(aligned_slice)
         edges_original = self.compute_edges(original_slice)
         
@@ -156,10 +168,10 @@ class ImprovedAlignmentLoss(nn.Module):
         )
         
         loss_dict = {
-            'symmetry': avg_symmetry.item(),
-            'regularization': avg_regularization.item(),
-            'edge_consistency': avg_edge_consistency.item(),
-            'total_alignment': total_loss.item()
+            'symmetry': avg_symmetry.item() if isinstance(avg_symmetry, torch.Tensor) else avg_symmetry,
+            'regularization': avg_regularization.item() if isinstance(avg_regularization, torch.Tensor) else avg_regularization,
+            'edge_consistency': avg_edge_consistency.item() if isinstance(avg_edge_consistency, torch.Tensor) else avg_edge_consistency,
+            'total_alignment': total_loss.item() if isinstance(total_loss, torch.Tensor) else total_loss
         }
         
         return total_loss, loss_dict
@@ -168,6 +180,7 @@ class ImprovedAlignmentLoss(nn.Module):
 class ImprovedCombinedLoss(nn.Module):
     """
     Improved combined loss for LCNN with better alignment loss
+    FIXED for AMP compatibility
     """
     
     def __init__(self, num_classes=2, dice_weight=0.5, ce_weight=0.5, 
@@ -179,7 +192,7 @@ class ImprovedCombinedLoss(nn.Module):
         self.alignment_weight = alignment_weight
         self.use_alignment = use_alignment
         
-        # Segmentation Loss (Từ MONAI)
+        # Segmentation Loss (From MONAI)
         from monai.losses import DiceCELoss
         self.dice_ce = DiceCELoss(
             include_background=True,
@@ -189,7 +202,7 @@ class ImprovedCombinedLoss(nn.Module):
             lambda_ce=ce_weight
         )
         
-        # Alignment Loss (Improved)
+        # Alignment Loss (Improved & Fixed)
         self.alignment_loss_fn = ImprovedAlignmentLoss(
             symmetry_weight=1.0,
             reg_weight=0.1,
@@ -218,7 +231,7 @@ class ImprovedCombinedLoss(nn.Module):
         dice_ce_loss = self.dice_ce(outputs, targets)
         
         total_loss = dice_ce_loss
-        alignment_loss = torch.tensor(0.0, device=outputs.device)
+        alignment_loss = torch.tensor(0.0, device=outputs.device, dtype=outputs.dtype)
         alignment_details = {}
         
         # Add improved alignment loss if slices are provided
@@ -232,4 +245,4 @@ class ImprovedCombinedLoss(nn.Module):
             total_loss = total_loss + self.alignment_weight * alignment_loss
         
         return total_loss, dice_ce_loss, alignment_loss, alignment_details
-    
+        
