@@ -163,4 +163,5 @@ python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 30
 This project is licensed under the MIT License.
 
 ---
-**Contact**: levuhoangtung1542003@gmail.com
+## ✉️ Contact
+If you encounter any issues, please create an issue on **GitHub** or contact: levuhoangtung1542003@gmail.com 
