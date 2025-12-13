@@ -21,6 +21,7 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 
 ```bash
 brain-stroke-segmentation/
+│
 ├── config.py                 # Central configuration
 ├── dataset.py                # Dataset and DataLoader (handles 3D slice stacking)
 ├── download_dataset.py       # Data download utility
@@ -29,16 +30,23 @@ brain-stroke-segmentation/
 ├── evaluate.py               # Validation and evaluation script
 ├── setup.sh                  # Application environment setup
 ├── requirements.txt          # Python dependencies
+│
 ├── models/
+│   ├── __init__.py
 │   ├── lcnn.py               # LCNN Main Architecture
 │   ├── sean.py               # SEAN + Alignment Network
 │   └── global_path.py        # ResNeXt Global Path
+│
 ├── utils/
+│   ├── __init__.py
 │   ├── visualization.py      # Plotting and overlay tools
 │   └── metrics.py            # Dice, IoU, Precision metrics
+│
 ├── data/                     # Dataset storage
-│   ├── image/                # CT Images
-│   └── mask/                 # Segmentation Masks
+│   ├── images/               # CT Images
+│   └── masks/                # Segmentation Masks
+│
+├── checkpoints/              # Checkpoint storage
 └── outputs/                  # Logs, charts, and visualizations
 ```
 
