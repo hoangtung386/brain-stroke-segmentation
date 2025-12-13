@@ -34,11 +34,12 @@ class Trainer:
         self.model.to(self.device)
         
         # Loss function
+        # Loss function
         self.criterion = ImprovedCombinedLoss(
             num_classes=config.NUM_CLASSES,
-            dice_weight=0.5,
-            ce_weight=0.5,
-            alignment_weight=0.1,
+            dice_weight=config.DICE_WEIGHT,
+            ce_weight=config.CE_WEIGHT,
+            alignment_weight=config.ALIGNMENT_WEIGHT,
             use_alignment=True
         )
         self.criterion.to(self.device)
@@ -315,8 +316,8 @@ class Trainer:
                         include_background=True,
                         to_onehot_y=True,
                         softmax=True,
-                        lambda_dice=0.5,
-                        lambda_ce=0.5
+                        lambda_dice=self.config.DICE_WEIGHT,
+                        lambda_ce=self.config.CE_WEIGHT
                     )
                     val_criterion = val_criterion.to(self.device)
                     
