@@ -168,9 +168,16 @@ class Trainer:
                 
                 # Prepare original slices
                 original_slices = [
-                    images[:, i:i+1, :, :]
+                    images[:, i:i+1, :, :].float()
                     for i in range(images.shape[1])
                 ]
+
+                # Fix for NaN: Ensure float32 for loss calculation
+                outputs = outputs.float()
+                if aligned_slices:
+                    aligned_slices = [s.float() for s in aligned_slices]
+                if alignment_params:
+                    alignment_params = [p.float() for p in alignment_params]
                 
                 # Compute loss (now properly handled inside autocast)
                 loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
@@ -236,6 +243,9 @@ class Trainer:
                 with autocast():
                     outputs = self.model(images)
                     
+                    # Fix for NaN: Ensure float32 for loss calculation
+                    outputs = outputs.float()
+
                     # Compute validation loss
                     loss, _, _, _ = self.criterion(outputs, masks, aligned_slices=None)
                     total_val_loss += loss.item()
