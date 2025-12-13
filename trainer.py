@@ -11,28 +11,28 @@ from datetime import datetime
 from monai.losses import DiceLoss, DiceCELoss
 from monai.metrics import DiceMetric
 from torch.cuda.amp import GradScaler, autocast
+from utils.improved_alignment_loss import ImprovedAlignmentLoss
 
 
-class CombinedLoss(nn.Module):
+class ImprovedCombinedLoss(nn.Module):
     """
-    Combined loss: Dice + CE + Alignment
+    Improved combined loss with better alignment
     
-    This is the proper loss for SEAN architecture:
-    1. Dice Loss: For segmentation quality
-    2. Cross Entropy: For pixel-wise classification
-    3. Alignment Loss: For symmetry-based alignment (optional)
+    Components:
+    1. MONAI DiceCELoss (unchanged) - for segmentation
+    2. ImprovedAlignmentLoss (new) - for alignment
     """
     
     def __init__(self, num_classes=2, dice_weight=0.5, ce_weight=0.5, 
-                 alignment_weight=0.1, use_alignment=True):
-        super(CombinedLoss, self).__init__()
+                 alignment_weight=0.3, use_alignment=True):
+        super(ImprovedCombinedLoss, self).__init__()
         
         self.dice_weight = dice_weight
         self.ce_weight = ce_weight
         self.alignment_weight = alignment_weight
         self.use_alignment = use_alignment
         
-        # Dice + Cross Entropy loss
+        # MONAI DiceCELoss - GIỮ NGUYÊN
         self.dice_ce = DiceCELoss(
             include_background=True,
             to_onehot_y=True,
@@ -40,39 +40,48 @@ class CombinedLoss(nn.Module):
             lambda_dice=dice_weight,
             lambda_ce=ce_weight
         )
+        
+        # Improved Alignment Loss - MỚI
+        self.alignment_loss_fn = ImprovedAlignmentLoss(
+            symmetry_weight=1.0,
+            reg_weight=0.1,
+            edge_weight=0.5
+        )
     
-    def forward(self, outputs, targets, aligned_slices=None):
+    def forward(self, outputs, targets, aligned_slices=None, 
+                alignment_params=None, original_slices=None):
         """
         Args:
-            outputs: (B, num_classes, H, W)
-            targets: (B, H, W) with class indices
-            aligned_slices: List of aligned slices for symmetry loss
+            outputs: (B, num_classes, H, W) - Model predictions
+            targets: (B, H, W) - Ground truth
+            aligned_slices: List of aligned slices (NEW)
+            alignment_params: List of params (NEW)
+            original_slices: List of original slices (NEW)
         
         Returns:
-            total_loss, dice_ce_loss, alignment_loss
+            total_loss, dice_ce_loss, alignment_loss, alignment_details
         """
-        # Main segmentation loss
-        # Ensure targets has channel dimension (B, 1, H, W) for to_onehot_y=True
+        # 1. Segmentation loss (MONAI - GIỮ NGUYÊN)
         if targets.ndim == 3:
             targets = targets.unsqueeze(1)
-            
+        
         dice_ce_loss = self.dice_ce(outputs, targets)
         
+        # 2. Alignment loss (IMPROVED - MỚI)
         total_loss = dice_ce_loss
         alignment_loss = torch.tensor(0.0, device=outputs.device)
+        alignment_details = {}
         
-        # Add alignment loss if slices are provided
-        if self.use_alignment and aligned_slices is not None:
-            for aligned_slice in aligned_slices:
-                # Flip horizontally and compute L1 difference
-                flipped = torch.flip(aligned_slice, dims=[-1])
-                alignment_loss += torch.nn.functional.l1_loss(aligned_slice, flipped)
+        if (self.use_alignment and aligned_slices is not None and 
+            alignment_params is not None and original_slices is not None):
             
-            # Average over slices
-            alignment_loss = alignment_loss / len(aligned_slices)
+            alignment_loss, alignment_details = self.alignment_loss_fn(
+                aligned_slices, alignment_params, original_slices
+            )
+            
             total_loss = total_loss + self.alignment_weight * alignment_loss
         
-        return total_loss, dice_ce_loss, alignment_loss
+        return total_loss, dice_ce_loss, alignment_loss, alignment_details
 
 
 class Trainer:
@@ -99,11 +108,11 @@ class Trainer:
         self.model.to(self.device)
         
         # Loss function with proper configuration
-        self.criterion = CombinedLoss(
+        self.criterion = ImprovedCombinedLoss(
             num_classes=config.NUM_CLASSES,
             dice_weight=0.5,
             ce_weight=0.5,
-            alignment_weight=0.1,
+            alignment_weight=0.3,
             use_alignment=True
         )
         
@@ -204,6 +213,11 @@ class Trainer:
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
+
+        # Tracking cho alignment details
+        total_symmetry = 0
+        total_regularization = 0
+        total_edge = 0
         
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train]")
         for images, masks in pbar:
@@ -214,11 +228,16 @@ class Trainer:
             
             # Forward pass with alignment
             with autocast():
-                outputs, aligned_slices, _ = self.model(images, return_alignment=True)
+                outputs, aligned_slices, alignment_params = self.model(images, return_alignment=True)
+                
+                original_slices = [
+                    images[:, i:i+1, :, :]
+                    for i in range(images.shape[1])
+                ]
                 
                 # Compute loss
-                loss, dice_ce_loss, alignment_loss = self.criterion(
-                    outputs, masks, aligned_slices
+                loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
+                    outputs, masks, aligned_slices, alignment_params, original_slices
                 )
             
             # Backward pass with scaler
@@ -235,17 +254,33 @@ class Trainer:
             total_dice_ce += dice_ce_loss.item()
             total_alignment += alignment_loss.item()
             
+            # Track alignment details
+            if align_details:
+                total_symmetry += align_details.get('symmetry', 0)
+                total_regularization += align_details.get('regularization', 0)
+                total_edge += align_details.get('edge_consistency', 0)
+            
+            # THAY ĐỔI: Progress bar với details mới
             pbar.set_postfix({
                 'loss': f'{loss.item():.4f}',
                 'dice_ce': f'{dice_ce_loss.item():.4f}',
-                'align': f'{alignment_loss.item():.4f}'
+                'align': f'{alignment_loss.item():.4f}',
+                'sym': f'{align_details.get("symmetry", 0):.4f}' if align_details else '0',
             })
-        
+
         avg_loss = total_loss / len(self.train_loader)
         avg_dice_ce = total_dice_ce / len(self.train_loader)
         avg_alignment = total_alignment / len(self.train_loader)
         
-        return avg_loss, avg_dice_ce, avg_alignment
+        avg_symmetry = total_symmetry / len(self.train_loader)
+        avg_regularization = total_regularization / len(self.train_loader)
+        avg_edge = total_edge / len(self.train_loader)
+        
+        return avg_loss, avg_dice_ce, avg_alignment, {
+            'symmetry': avg_symmetry,
+            'regularization': avg_regularization,
+            'edge_consistency': avg_edge
+        }
 
     def validate(self, epoch):
         """Validate model"""
@@ -327,8 +362,8 @@ class Trainer:
         
         for epoch in range(self.start_epoch, num_epochs):
             # Train
-            train_loss, dice_ce_loss, alignment_loss = self.train_epoch(epoch + 1)
-            
+            train_loss, dice_ce_loss, alignment_loss, align_details = self.train_epoch(epoch + 1)
+
             # Validate
             val_dice, val_loss = self.validate(epoch + 1)
             
@@ -358,6 +393,10 @@ class Trainer:
             print(f"  Train Loss:       {train_loss:.4f}")
             print(f"    - Dice+CE:      {dice_ce_loss:.4f}")
             print(f"    - Alignment:    {alignment_loss:.4f}")
+            print(f"    - Alignment Details:")
+            print(f"        * Symmetry: {align_details['symmetry']:.4f}")
+            print(f"        * Regular:{align_details['regularization']:.4f}")
+            print(f"        * Edge:{align_details['edge_consistency']:.4f}")
             print(f"  Val Loss:         {val_loss:.4f}")
             print(f"  Val Dice:         {val_dice:.4f}")
             print(f"  Learning Rate:    {current_lr:.6f}")
@@ -385,3 +424,4 @@ class Trainer:
         if self.use_wandb:
             import wandb
             wandb.finish()
+    
