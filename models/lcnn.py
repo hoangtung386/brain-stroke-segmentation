@@ -69,7 +69,7 @@ class LCNN(nn.Module):
         """
         # Extract center slice for global path
         center_idx = x.size(1) // 2
-        x_center = x[:, center_idx:center_idx+1, :, :]  # (B, 1, H, W)
+        x_center = x[:, center_idx, :, :].unsqueeze(1)  # (B, 1, H, W)
         
         # Convert to RGB for global path
         x_rgb = self.to_rgb(x_center)  # (B, 3, H, W)
@@ -99,7 +99,7 @@ class LCNN(nn.Module):
     def get_global_output(self, x):
         """Get only global path output"""
         center_idx = x.size(1) // 2
-        x_center = x[:, center_idx:center_idx+1, :, :]
+        x_center = x[:, center_idx, :, :].unsqueeze(1)  # (B, 1, H, W)
         x_rgb = self.to_rgb(x_center)
         return self.global_path(x_rgb)
     
