@@ -68,6 +68,9 @@ class ImprovedAlignmentLoss(nn.Module):
         Returns:
             Symmetry loss value
         """
+        # Clamp values to prevent extreme outliers
+        aligned_slice = torch.clamp(aligned_slice, 0, 1)
+        
         # Flip horizontally
         flipped = torch.flip(aligned_slice, dims=[-1])
         

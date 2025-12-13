@@ -34,11 +34,12 @@ class Trainer:
         self.model.to(self.device)
         
         # Loss function
+        # Loss function
         self.criterion = ImprovedCombinedLoss(
             num_classes=config.NUM_CLASSES,
-            dice_weight=0.5,
-            ce_weight=0.5,
-            alignment_weight=0.1,  # ← ĐÃ GIẢM trong config
+            dice_weight=config.DICE_WEIGHT,
+            ce_weight=config.CE_WEIGHT,
+            alignment_weight=config.ALIGNMENT_WEIGHT,
             use_alignment=True
         )
         self.criterion.to(self.device)
@@ -47,13 +48,13 @@ class Trainer:
         self.optimizer = optim.AdamW(
             model.parameters(), 
             lr=config.LEARNING_RATE,
-            weight_decay=1e-4,  # ← Tăng từ 1e-5
+            weight_decay=1e-4,
             betas=(0.9, 0.999),
             eps=1e-8
         )
         
         # AMP Scaler với init_scale thấp hơn
-        self.scaler = GradScaler(init_scale=512)  # ← Giảm từ 2^16
+        self.scaler = GradScaler(init_scale=512)
         
         # Scheduler
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -147,6 +148,7 @@ class Trainer:
     def train_epoch(self, epoch):
         """Train one epoch with NaN detection"""
         self.model.train()
+        self.nan_count = 0  # Reset NaN counter at start of epoch
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
@@ -308,15 +310,14 @@ class Trainer:
                     
                     outputs = outputs.float()
                     
-                    # ============ FIX ĐÂY ============
-                    # CHỈ TÍNH DICE + CE, BỎ QUA ALIGNMENT LOSS
+                    # Chỉ tính Dice + CE, bỏ qua Alignment Loss
                     from monai.losses import DiceCELoss
                     val_criterion = DiceCELoss(
                         include_background=True,
                         to_onehot_y=True,
                         softmax=True,
-                        lambda_dice=0.5,
-                        lambda_ce=0.5
+                        lambda_dice=self.config.DICE_WEIGHT,
+                        lambda_ce=self.config.CE_WEIGHT
                     )
                     val_criterion = val_criterion.to(self.device)
                     
@@ -326,7 +327,6 @@ class Trainer:
                         masks_for_loss = masks
                     
                     loss = val_criterion(outputs, masks_for_loss)
-                    # ==================================
                     
                     if not self.check_for_nan(loss, "val_loss"):
                         total_val_loss += loss.item()

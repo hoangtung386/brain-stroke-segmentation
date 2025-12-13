@@ -31,7 +31,7 @@ class Config:
     LEARNING_RATE = 5e-4  # Giảm từ 1e-3 để tránh gradient explosion
     
     # DataLoader parameters
-    NUM_WORKERS = 4
+    NUM_WORKERS = 16
     CACHE_RATE = 0
     PIN_MEMORY = True
     PERSISTENT_WORKERS = True
@@ -46,13 +46,23 @@ class Config:
     # NORMALIZED VALUES (after ToTensor)
     # Original: 55.1385 ± 46.2948 (range 0-255)
     # After ToTensor (÷255): values in [0, 1]
-    MEAN = [55.1385 / 255.0]  # = 0.2162
+    MEAN = [55.1385 / 255.0]  # Optimization
     STD = [46.2948 / 255.0]   # = 0.1841
     
-    # Loss weights - GIẢM alignment weight để ổn định
+    LEARNING_RATE = 1e-4      # Reduced from 5e-4
+    WEIGHT_DECAY = 1e-4
+
+    # Training Stability
+    GRAD_CLIP_NORM = 0.5      # Reduced from 1.0
+    USE_AMP = True            # Automatic Mixed Precision
+    DETECT_ANOMALY = False    # Set True for debugging
+
+    # Loss Weights
     DICE_WEIGHT = 0.5
-    CE_WEIGHT = 0.5
-    ALIGNMENT_WEIGHT = 0.3 
+    CE_WEIGHT = 0.5           # Restored CE_WEIGHT
+    FOCAL_WEIGHT = 1.0
+    ALIGNMENT_WEIGHT = 0.1    # Temporarily disabled from 0.3
+    PERCEPTUAL_WEIGHT = 0.1   
     
     # W&B settings
     USE_WANDB = True
@@ -63,9 +73,6 @@ class Config:
     SCHEDULER_T0 = 10
     SCHEDULER_T_MULT = 2
     SCHEDULER_ETA_MIN = 1e-6
-    
-    # Gradient clipping - TĂNG LÊN để control gradient
-    GRAD_CLIP_NORM = 1.0
     
     # Early stopping
     EARLY_STOPPING_PATIENCE = 20
