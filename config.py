@@ -134,3 +134,4 @@ class Config:
         print(f"  STD = [{std:.6f}]")
         
         return mean, std
+    
