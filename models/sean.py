@@ -14,17 +14,16 @@ from .components import (
 
 class SEAN(nn.Module):
     """
-    Symmetry Enhanced Attention Network
-    Full pipeline: Alignment -> HybridUNet with SEA
+    Proper gradient flow and initialization
     """
     
-    def __init__(self, in_channels=1, num_classes=2, T=1):
+    def __init__(self, in_channels=1, num_classes=2, T=1, input_size=(512, 512)):
         super(SEAN, self).__init__()
         
         self.T = T
         
-        # Alignment Network
-        self.alignment_net = AlignmentNetwork()
+        # Alignment Network với input size động
+        self.alignment_net = AlignmentNetwork(input_size=input_size)
         
         # HybridUNet Encoder (3D)
         self.enc1 = EncoderBlock3D(1, 64)
@@ -32,11 +31,12 @@ class SEAN(nn.Module):
         self.enc3 = EncoderBlock3D(128, 256)
         self.enc4 = EncoderBlock3D(256, 512)
         
-        # Bottleneck
+        # Bottleneck với Dropout
         self.bottleneck = nn.Sequential(
             nn.Conv3d(512, 1024, kernel_size=3, padding=1),
             nn.BatchNorm3d(1024),
             nn.ReLU(inplace=True),
+            nn.Dropout3d(0.2),  # ← THÊM Dropout
             nn.Conv3d(1024, 1024, kernel_size=3, padding=1),
             nn.BatchNorm3d(1024),
             nn.ReLU(inplace=True)
@@ -58,6 +58,26 @@ class SEAN(nn.Module):
         
         # Final output
         self.final = nn.Conv2d(64, num_classes, kernel_size=1)
+        
+        # Proper weight initialization
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        """
+        Initialize weights to prevent gradient explosion
+        """
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Conv3d, nn.ConvTranspose2d)):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, (nn.BatchNorm2d, nn.BatchNorm3d)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
     
     def forward(self, x, return_alignment=False):
         """
@@ -72,14 +92,19 @@ class SEAN(nn.Module):
         B, num_slices, H, W = x.shape
         center_idx = num_slices // 2
         
-        # 1. Alignment - align each slice
+        # 1. Alignment - align each slice với gradient scaling
         aligned_slices = []
         alignment_params = []
         
         for i in range(num_slices):
             slice_i = x[:, i:i+1, :, :]  # (B, 1, H, W)
-            params = self.alignment_net(slice_i)
-            aligned_slice, theta = self.alignment_net.apply_transform(slice_i, params)
+            
+            # Thêm gradient scaling để tránh explosion
+            with torch.cuda.amp.autocast(enabled=False):
+                slice_i_fp32 = slice_i.float()
+                params = self.alignment_net(slice_i_fp32)
+                aligned_slice, theta = self.alignment_net.apply_transform(slice_i_fp32, params)
+            
             aligned_slices.append(aligned_slice)
             alignment_params.append(params)
         
@@ -123,3 +148,4 @@ class SEAN(nn.Module):
             return output, aligned_slices, alignment_params
         
         return output
+        
