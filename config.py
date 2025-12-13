@@ -31,7 +31,7 @@ class Config:
     LEARNING_RATE = 5e-4  # Giảm từ 1e-3 để tránh gradient explosion
     
     # DataLoader parameters
-    NUM_WORKERS = 4
+    NUM_WORKERS = 16
     CACHE_RATE = 0
     PIN_MEMORY = True
     PERSISTENT_WORKERS = True
