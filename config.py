@@ -46,8 +46,8 @@ class Config:
     # Normalization parameters (grayscale CT)
     # These should be computed from your dataset
     # For now, using standard values
-    MEAN = [0.216229]  # Single channel for grayscale
-    STD = [0.335106]   # Single channel for grayscale
+    MEAN = [55.1385]  # Single channel for grayscale
+    STD = [46.2948]   # Single channel for grayscale
     
     # Loss weights
     DICE_WEIGHT = 0.5
