@@ -1,5 +1,5 @@
 """
-Trainer with NaN detection and recovery
+Trainer with AGGRESSIVE NaN Prevention and Scale Control
 """
 import os
 import pandas as pd
@@ -17,10 +17,11 @@ from utils.improved_alignment_loss import ImprovedCombinedLoss
 
 class Trainer:
     """
-    Trainer with:
-    1. NaN detection and recovery
-    2. Proper gradient clipping
-    3. Loss scaling monitoring
+    Trainer với:
+    1. AGGRESSIVE scale control - không để scale vượt quá 4096
+    2. Loss value monitoring - detect anomalies TRƯỚC khi backward
+    3. Dynamic alignment weight reduction khi gặp NaN
+    4. Gradient statistics logging
     """
     
     def __init__(self, model, train_loader, val_loader, config, device, use_wandb=False):
@@ -43,7 +44,7 @@ class Trainer:
         )
         self.criterion.to(self.device)
         
-        # Optimizer với weight decay mạnh hơn
+        # Optimizer với gradient clipping trong optimizer
         self.optimizer = optim.AdamW(
             model.parameters(), 
             lr=config.LEARNING_RATE,
@@ -52,8 +53,14 @@ class Trainer:
             eps=1e-8
         )
         
-        # AMP Scaler với init_scale thấp hơn
-        self.scaler = GradScaler(init_scale=512)
+        # CRITICAL: AMP Scaler với AGGRESSIVE control
+        self.scaler = GradScaler(
+            init_scale=256,        # Giảm từ 512
+            growth_factor=1.5,     # Tăng chậm hơn (default 2.0)
+            backoff_factor=0.25,   # Giảm nhanh hơn khi gặp NaN (default 0.5)
+            growth_interval=500,   # Tăng scale sau 500 iterations (default 2000)
+        )
+        self.max_scale = 4096  # HARD CAP - không để scale vượt quá
         
         # Scheduler
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -75,29 +82,67 @@ class Trainer:
         self.best_dice = 0.0
         self.history = []
         self.wandb_run_id = None
-        self.nan_count = 0  # Track số lần gặp NaN
-        self.alignment_warmup_epochs = 10  # Warmup epochs for alignment loss
+        self.nan_count = 0
+        self.consecutive_nans = 0  # Track liên tiếp
+        self.alignment_warmup_epochs = 10
+        
+        # Scale monitoring
+        self.scale_history = []
+        self.scale_reduced_count = 0
         
         # Paths
         self.checkpoint_path = os.path.join(config.CHECKPOINT_DIR, 'checkpoint.pth')
         self.best_model_path = os.path.join(config.CHECKPOINT_DIR, 'best_model.pth')
         self.history_csv_path = os.path.join(config.OUTPUT_DIR, 'training_history.csv')
     
-    def check_for_nan(self, tensor, name="tensor"):
-        """Check if tensor contains NaN or Inf"""
+    def check_tensor_health(self, tensor, name="tensor", max_val=100):
+        """
+        Comprehensive tensor health check
+        Returns: (is_healthy, issue_description)
+        """
         if torch.isnan(tensor).any():
-            print(f"NaN detected in {name}!")
-            return True
+            return False, f"NaN in {name}"
         if torch.isinf(tensor).any():
-            print(f"Inf detected in {name}!")
+            return False, f"Inf in {name}"
+        
+        # Check extreme values
+        max_abs = tensor.abs().max().item()
+        if max_abs > max_val:
+            return False, f"Extreme value in {name}: {max_abs:.2f}"
+        
+        return True, "OK"
+
+    def control_scaler_growth(self):
+        """
+        Kiểm soát scale không được vượt quá MAX_SCALE
+        """
+        current_scale = self.scaler.get_scale()
+        
+        if current_scale > self.max_scale:
+            print(f"\nScale too high ({current_scale:.0f}), reducing to {self.max_scale}")
+            self.scaler._scale.fill_(self.max_scale)
+            self.scale_reduced_count += 1
             return True
+        
         return False
 
     def get_alignment_weight(self, epoch):
-        """Gradually increase alignment weight"""
+        """
+        Gradually increase alignment weight with NaN-aware reduction
+        """
+        base_weight = self.config.ALIGNMENT_WEIGHT
+        
+        # Warmup phase
         if epoch < self.alignment_warmup_epochs:
-            return self.config.ALIGNMENT_WEIGHT * (epoch / self.alignment_warmup_epochs)
-        return self.config.ALIGNMENT_WEIGHT
+            base_weight = base_weight * (epoch / self.alignment_warmup_epochs)
+        
+        # REDUCE if too many consecutive NaNs
+        if self.consecutive_nans > 3:
+            reduction_factor = 0.5 ** (self.consecutive_nans - 3)
+            base_weight = base_weight * reduction_factor
+            print(f"Alignment weight reduced to {base_weight:.5f} due to NaNs")
+        
+        return max(base_weight, 1e-4)  # Minimum threshold
     
     def save_checkpoint(self, epoch, val_dice, is_best=False):
         """Save training checkpoint"""
@@ -111,7 +156,9 @@ class Trainer:
             'history': self.history,
             'config': self.config.to_dict(),
             'wandb_run_id': self.wandb_run_id,
-            'nan_count': self.nan_count
+            'nan_count': self.nan_count,
+            'scale_history': self.scale_history,
+            'scale_reduced_count': self.scale_reduced_count
         }
         
         torch.save(checkpoint, self.checkpoint_path)
@@ -140,6 +187,10 @@ class Trainer:
                 self.wandb_run_id = checkpoint['wandb_run_id']
             if 'nan_count' in checkpoint:
                 self.nan_count = checkpoint['nan_count']
+            if 'scale_history' in checkpoint:
+                self.scale_history = checkpoint['scale_history']
+            if 'scale_reduced_count' in checkpoint:
+                self.scale_reduced_count = checkpoint['scale_reduced_count']
             
             print(f"Resumed from epoch {self.start_epoch}, best dice: {self.best_dice:.4f}")
             return True
@@ -152,108 +203,123 @@ class Trainer:
             df.to_csv(self.history_csv_path, index=False)
     
     def train_epoch(self, epoch):
-        """Train one epoch with enhanced NaN protection"""
+        """Train one epoch with MAXIMUM NaN protection"""
         self.model.train()
-        self.nan_count = 0  # Reset NaN counter at start of epoch
+        self.consecutive_nans = 0  # Reset at epoch start
+        
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
-        total_symmetry = 0
-        total_regularization = 0
-        total_edge = 0
-        
         valid_batches = 0
-        nan_in_epoch = False
         
-        # Get current alignment weight
+        # Get alignment weight for this epoch
         current_alignment_weight = self.get_alignment_weight(epoch)
         self.criterion.alignment_weight = current_alignment_weight
         
-        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train] (AlignW={current_alignment_weight:.4f})")
+        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train] (Align={current_alignment_weight:.4f})")
+        
         for batch_idx, (images, masks) in enumerate(pbar):
-            # 🔹 CHECK 1: Validate input data range
-            if torch.isnan(images).any() or torch.isinf(images).any():
-                print(f"Skipping batch {batch_idx}: Invalid input data")
-                continue
-
-            # Clamp input to prevent extreme values
-            images = torch.clamp(images, -10, 10)
+            # Control scale BEFORE forward pass
+            scale_was_reduced = self.control_scaler_growth()
+            current_scale = self.scaler.get_scale()
             
+            # Validate and sanitize inputs
+            is_healthy, issue = self.check_tensor_health(images, "input_images", max_val=20)
+            if not is_healthy:
+                print(f"Batch {batch_idx}: {issue} - SKIPPING")
+                self.consecutive_nans += 1
+                continue
+            
+            images = torch.clamp(images, -10, 10)
             images = images.to(self.device)
             masks = masks.to(self.device)
             
             self.optimizer.zero_grad()
             
             try:
-                with autocast():
+                # Forward pass with health checks
+                with autocast(enabled=True):  # Explicitly enable
                     outputs, aligned_slices, alignment_params = self.model(
                         images, return_alignment=True
                     )
+                    
+                    # Immediate output check
+                    is_healthy, issue = self.check_tensor_health(outputs, "model_outputs", max_val=50)
+                    if not is_healthy:
+                        print(f"Batch {batch_idx}: {issue} - SKIPPING")
+                        self.consecutive_nans += 1
+                        torch.cuda.empty_cache()
+                        continue
+                    
+                    outputs = torch.clamp(outputs, -30, 30)
                 
-                # 🔹 CHECK 2: Validate model outputs
-                if torch.isnan(outputs).any() or torch.isinf(outputs).any():
-                    print(f"Skipping batch {batch_idx}: NaN in model outputs")
-                    self.nan_count += 1
-                    if self.nan_count > 5:
-                        print("Too many NaN batches! Stopping...")
-                        return None, None, None, None
-                    continue
-                
-                # Clamp outputs
-                outputs = torch.clamp(outputs, -20, 20)
-                
-                # Move to float32 for loss computation
+                # Prepare for loss (OUTSIDE autocast for stability)
                 outputs = outputs.float()
-                original_slices = [s.float() for s in [images[:, i:i+1, :, :] for i in range(images.shape[1])]]
+                original_slices = [images[:, i:i+1, :, :].float() for i in range(images.shape[1])]
                 
                 if aligned_slices is not None:
                     aligned_slices = [torch.clamp(s.float(), -10, 10) for s in aligned_slices]
                 if alignment_params is not None:
-                    alignment_params = [torch.clamp(p.float(), -1, 1) for p in alignment_params]
+                    alignment_params = [torch.clamp(p.float(), -0.5, 0.5) for p in alignment_params]
                 
-                # Compute loss
+                # Compute loss with validation
                 loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
                     outputs, masks, aligned_slices, alignment_params, original_slices
                 )
                 
-                # 🔹 CHECK 3: Validate loss values
-                if torch.isnan(loss).any() or torch.isinf(loss).any():
-                    print(f"Skipping batch {batch_idx}: NaN/Inf in loss")
-                    self.nan_count += 1
+                # Check loss health
+                is_healthy, issue = self.check_tensor_health(loss, "loss", max_val=100)
+                if not is_healthy:
+                    print(f"Batch {batch_idx}: {issue} - SKIPPING")
+                    self.consecutive_nans += 1
+                    torch.cuda.empty_cache()
                     continue
                 
-                # 🔹 CHECK 4: Loss magnitude check
-                if loss.item() > 100:
-                    print(f"Warning: Very large loss ({loss.item():.2f})")
-                    # Scale down loss
+                # Additional loss magnitude check
+                loss_val = loss.item()
+                if loss_val > 50:
+                    print(f"Large loss detected: {loss_val:.2f}, scaling down")
                     loss = loss * 0.1
                 
                 # Backward with scaling
                 self.scaler.scale(loss).backward()
                 
-                # 🔹 CHECK 5: Gradient validation
+                # Unscale and check gradients
                 self.scaler.unscale_(self.optimizer)
                 
-                # Check for NaN gradients
-                has_nan_grad = False
+                # Check gradient health
+                has_bad_grad = False
                 max_grad_norm = 0.0
+                grad_stats = []
+                
                 for name, param in self.model.named_parameters():
                     if param.grad is not None:
+                        grad_norm = param.grad.norm().item()
+                        max_grad_norm = max(max_grad_norm, grad_norm)
+                        
                         if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
-                            print(f"NaN gradient in {name}")
-                            has_nan_grad = True
+                            print(f"Bad gradient in {name}: norm={grad_norm:.2f}")
+                            has_bad_grad = True
                             break
-                        max_grad_norm = max(max_grad_norm, param.grad.abs().max().item())
+                        
+                        if grad_norm > 1000:
+                            print(f"Extreme gradient in {name}: {grad_norm:.2f}")
+                            has_bad_grad = True
+                            break
                 
-                if has_nan_grad:
-                    print(f"Skipping batch {batch_idx}: NaN in gradients")
+                if has_bad_grad:
+                    print(f"Batch {batch_idx}: Bad gradients - SKIPPING")
                     self.optimizer.zero_grad()
-                    self.nan_count += 1
+                    self.consecutive_nans += 1
+                    
+                    # Force reduce scale after bad gradients
+                    if current_scale > 256:
+                        new_scale = current_scale * 0.5
+                        print(f"Force reducing scale: {current_scale:.0f} → {new_scale:.0f}")
+                        self.scaler._scale.fill_(new_scale)
+                    
+                    torch.cuda.empty_cache()
                     continue
-                
-                # 🔹 CHECK 6: Monitor gradient norm
-                if max_grad_norm > 100:
-                    print(f"Very large gradient: {max_grad_norm:.2f}")
                 
                 # Gradient clipping
                 grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -261,77 +327,90 @@ class Trainer:
                     max_norm=self.config.GRAD_CLIP_NORM
                 )
                 
-                # 🔹 CHECK 7: Skip update if gradient is too large
-                if grad_norm > 50:
-                    print(f"Skipping optimizer step: grad_norm={grad_norm:.2f}")
+                # Skip if gradient still too large after clipping
+                if grad_norm > 10:
+                    print(f"Batch {batch_idx}: grad_norm={grad_norm:.2f} still too high - SKIPPING")
                     self.optimizer.zero_grad()
+                    self.consecutive_nans += 1
                     continue
                 
+                # Safe optimizer step
                 self.scaler.step(self.optimizer)
                 
-                # 🔹 CHECK 8: Monitor scaler
+                # Update scaler with monitoring
                 old_scale = self.scaler.get_scale()
                 self.scaler.update()
                 new_scale = self.scaler.get_scale()
                 
-                if new_scale < old_scale * 0.5:
-                    print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
-
+                # Log scale changes
+                if old_scale != new_scale:
+                    change_pct = (new_scale - old_scale) / old_scale * 100
+                    if abs(change_pct) > 10:
+                        print(f"Scale change: {old_scale:.0f} → {new_scale:.0f} ({change_pct:+.1f}%)")
+                
+                # Success! Reset consecutive counter
+                self.consecutive_nans = 0
+                
                 # Accumulate metrics
                 total_loss += loss.item()
                 total_dice_ce += dice_ce_loss.item()
                 total_alignment += alignment_loss.item() if isinstance(alignment_loss, torch.Tensor) else alignment_loss
-                
-                if align_details:
-                    total_symmetry += align_details.get('symmetry', 0)
-                    total_regularization += align_details.get('regularization', 0)
-                    total_edge += align_details.get('edge_consistency', 0)
-                
                 valid_batches += 1
                 
-                # Progress bar
+                # Update progress bar
                 pbar.set_postfix({
                     'loss': f'{loss.item():.4f}',
                     'dice_ce': f'{dice_ce_loss.item():.4f}',
                     'grad': f'{grad_norm:.2f}',
-                    'scale': f'{self.scaler.get_scale():.0f}'
+                    'scale': f'{new_scale:.0f}'
                 })
+                
+                # Store scale history
+                self.scale_history.append(new_scale)
             
             except RuntimeError as e:
-                if "out of memory" in str(e):
-                    print(f"OOM at batch {batch_idx}, clearing cache...")
+                error_msg = str(e)
+                if "out of memory" in error_msg:
+                    print(f"\nOOM at batch {batch_idx}!")
+                    print(f"Scale: {current_scale:.0f}")
+                    print(f"Consecutive NaNs: {self.consecutive_nans}")
+                    
+                    # Aggressive cleanup
                     torch.cuda.empty_cache()
                     self.optimizer.zero_grad()
-                    self.nan_count += 1 # Count OOM as error to be aware
+                    
+                    # Force reduce scale on OOM
+                    new_scale = min(current_scale * 0.25, 512)
+                    print(f"Reducing scale to {new_scale:.0f}")
+                    self.scaler._scale.fill_(new_scale)
+                    
+                    self.consecutive_nans += 1
                     continue
                 else:
-                    print(f"Runtime error in batch {batch_idx}: {e}")
-                    self.nan_count += 1
+                    print(f"\nRuntime error in batch {batch_idx}: {error_msg}")
                     self.optimizer.zero_grad()
+                    self.consecutive_nans += 1
                     continue
         
-        if nan_in_epoch:
-            return None, None, None, None
-        
+        # Epoch summary
         if valid_batches == 0:
-            print("No valid batches in this epoch!")
+            print("\nNO VALID BATCHES IN THIS EPOCH!")
             return None, None, None, None
         
         avg_loss = total_loss / valid_batches
         avg_dice_ce = total_dice_ce / valid_batches
         avg_alignment = total_alignment / valid_batches
-        avg_symmetry = total_symmetry / valid_batches
-        avg_regularization = total_regularization / valid_batches
-        avg_edge = total_edge / valid_batches
         
-        return avg_loss, avg_dice_ce, avg_alignment, {
-            'symmetry': avg_symmetry,
-            'regularization': avg_regularization,
-            'edge_consistency': avg_edge
-        }
+        print(f"\nEpoch {epoch} Stats:")
+        print(f"   Valid batches: {valid_batches}/{len(self.train_loader)}")
+        print(f"   NaN count: {self.nan_count}")
+        print(f"   Scale reduced: {self.scale_reduced_count} times")
+        print(f"   Final scale: {self.scaler.get_scale():.0f}")
+        
+        return avg_loss, avg_dice_ce, avg_alignment, {}
     
     def validate(self, epoch):
-        """Validate model"""
+        """Validate model with NaN protection"""
         self.model.eval()
         self.dice_metric.reset()
         
@@ -345,12 +424,13 @@ class Trainer:
                 masks = masks.to(self.device)
                 
                 try:
-                    with autocast():
+                    # Forward without alignment (faster)
+                    with autocast(enabled=True):
                         outputs = self.model(images)
                     
                     outputs = outputs.float()
                     
-                    # Chỉ tính Dice + CE, bỏ qua Alignment Loss
+                    # Simple validation loss (no alignment)
                     from monai.losses import DiceCELoss
                     val_criterion = DiceCELoss(
                         include_background=True,
@@ -361,26 +441,20 @@ class Trainer:
                     )
                     val_criterion = val_criterion.to(self.device)
                     
-                    if masks.ndim == 3:
-                        masks_for_loss = masks.unsqueeze(1)
-                    else:
-                        masks_for_loss = masks
-                    
+                    masks_for_loss = masks.unsqueeze(1) if masks.ndim == 3 else masks
                     loss = val_criterion(outputs, masks_for_loss)
                     
-                    if not self.check_for_nan(loss, "val_loss"):
-                        total_val_loss += loss.item()
-                        valid_batches += 1
-                    else:
-                        print(f"Skipping batch due to NaN in val_loss")
+                    # Check loss health
+                    is_healthy, issue = self.check_tensor_health(loss, "val_loss", max_val=100)
+                    if not is_healthy:
+                        print(f"Validation: {issue} - SKIPPING batch")
                         continue
                     
-                    # Compute Dice metric
-                    if masks.ndim == 3:
-                        masks_for_metric = masks.unsqueeze(1)
-                    else:
-                        masks_for_metric = masks
+                    total_val_loss += loss.item()
+                    valid_batches += 1
                     
+                    # Compute Dice
+                    masks_for_metric = masks.unsqueeze(1) if masks.ndim == 3 else masks
                     self.dice_metric(y_pred=outputs, y=masks_for_metric)
                 
                 except RuntimeError as e:
@@ -388,16 +462,11 @@ class Trainer:
                     continue
         
         if valid_batches == 0:
-            print("No valid batches in validation!")
+            print("No valid validation batches!")
             return 0.0, float('inf')
         
         dice_result = self.dice_metric.aggregate()
-        
-        if isinstance(dice_result, (list, tuple)):
-            val_dice = dice_result[0].item() if len(dice_result) > 0 else 0.0
-        else:
-            val_dice = dice_result.item()
-        
+        val_dice = dice_result[0].item() if isinstance(dice_result, (list, tuple)) else dice_result.item()
         avg_val_loss = total_val_loss / valid_batches
         
         return val_dice, avg_val_loss
@@ -421,70 +490,71 @@ class Trainer:
                     id=self.wandb_run_id
                 )
             else:
-                run_name = f"fixed_train_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                run_name = f"nan_fixed_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 wandb.init(
                     project=self.config.WANDB_PROJECT,
                     entity=self.config.WANDB_ENTITY,
                     config=self.config.to_dict(),
                     name=run_name,
-                    tags=["brain-stroke", "fixed-nan"]
+                    tags=["brain-stroke", "nan-fixed", "scale-controlled"]
                 )
                 self.wandb_run_id = wandb.run.id
             
             wandb.watch(self.model, log='all', log_freq=100)
         
-        print(f"\n{'='*60}")
-        print(f"Starting FIXED training from epoch {self.start_epoch} to {num_epochs}")
-        print(f"Device: {self.device}")
-        print(f"Batch size: {self.config.BATCH_SIZE}")
-        print(f"Learning rate: {self.config.LEARNING_RATE}")
-        print(f"Gradient clip: {self.config.GRAD_CLIP_NORM}")
-        print(f"{'='*60}\n")
+        print(f"\n{'='*70}")
+        print(f"Starting SCALE-CONTROLLED training")
+        print(f"{'='*70}")
+        print(f"   Epoch range: {self.start_epoch} → {num_epochs}")
+        print(f"   Device: {self.device}")
+        print(f"   Max scale: {self.max_scale}")
+        print(f"   Initial scale: {self.scaler.get_scale():.0f}")
+        print(f"   Gradient clip: {self.config.GRAD_CLIP_NORM}")
+        print(f"{'='*70}\n")
         
         for epoch in range(self.start_epoch, num_epochs):
             # Train
             result = self.train_epoch(epoch + 1)
             
             if result[0] is None:
-                print(f"Epoch {epoch+1} failed due to NaN. Stopping training.")
+                print(f"Epoch {epoch+1} FAILED - stopping training")
                 break
             
-            train_loss, dice_ce_loss, alignment_loss, align_details = result
+            train_loss, dice_ce_loss, alignment_loss, _ = result
             
             # Validate
             val_dice, val_loss = self.validate(epoch + 1)
             
             # Step scheduler
             self.scheduler.step()
-            
             current_lr = self.optimizer.param_groups[0]['lr']
             
             # Record metrics
             metrics = {
                 'epoch': epoch + 1,
                 'train_loss': train_loss,
-                'train_dice_ce': dice_ce_loss,
-                'train_alignment': alignment_loss,
                 'val_loss': val_loss,
                 'val_dice': val_dice,
                 'learning_rate': current_lr,
                 'best_dice': self.best_dice,
-                'nan_count': self.nan_count
+                'nan_count': self.nan_count,
+                'scale': self.scaler.get_scale(),
+                'scale_reduced_count': self.scale_reduced_count
             }
             
             self.history.append(metrics)
             
-            # Print metrics
-            print(f"\n{'='*60}")
+            # Print summary
+            print(f"\n{'='*70}")
             print(f"Epoch {epoch+1}/{num_epochs} Summary:")
-            print(f"{'='*60}")
-            print(f"  Train Loss:       {train_loss:.4f}")
-            print(f"  Val Loss:         {val_loss:.4f}")
-            print(f"  Val Dice:         {val_dice:.4f}")
-            print(f"  Learning Rate:    {current_lr:.6f}")
-            print(f"  Best Dice:        {self.best_dice:.4f}")
-            print(f"  NaN Count:        {self.nan_count}")
-            print(f"{'='*60}\n")
+            print(f"{'='*70}")
+            print(f"   Train Loss:    {train_loss:.4f}")
+            print(f"   Val Loss:      {val_loss:.4f}")
+            print(f"   Val Dice:      {val_dice:.4f}")
+            print(f"   Learning Rate: {current_lr:.2e}")
+            print(f"   Scale:         {self.scaler.get_scale():.0f}")
+            print(f"   NaN Count:     {self.nan_count}")
+            print(f"{'='*70}\n")
             
             # Log to W&B
             if self.use_wandb:
@@ -499,11 +569,13 @@ class Trainer:
             self.save_checkpoint(epoch, val_dice, is_best)
             self.save_history_csv()
         
-        print(f"\n{'='*60}")
+        print(f"\n{'='*70}")
         print(f"Training Complete!")
-        print(f"Best Dice Score: {self.best_dice:.4f}")
-        print(f"Total NaN occurrences: {self.nan_count}")
-        print(f"{'='*60}\n")
+        print(f"{'='*70}")
+        print(f"   Best Dice: {self.best_dice:.4f}")
+        print(f"   Total NaNs: {self.nan_count}")
+        print(f"   Scale reductions: {self.scale_reduced_count}")
+        print(f"{'='*70}\n")
         
         if self.use_wandb:
             import wandb

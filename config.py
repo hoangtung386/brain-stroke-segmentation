@@ -1,5 +1,5 @@
 """
-FIXED Configuration - Normalization values corrected
+STABILITY-FOCUSED Configuration
 """
 import os
 
@@ -26,9 +26,9 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 8
+    BATCH_SIZE = 8  # Keep at 8 for stability
     NUM_EPOCHS = 300
-    LEARNING_RATE = 5e-5
+    LEARNING_RATE = 5e-5  # Conservative LR
     
     # DataLoader parameters
     NUM_WORKERS = 8
@@ -43,26 +43,31 @@ class Config:
     GLOBAL_IMPACT = 0.3
     LOCAL_IMPACT = 0.7
     
-    # NORMALIZED VALUES (after ToTensor)
-    # Original: 55.1385 ± 46.2948 (range 0-255)
-    # After ToTensor (÷255): values in [0, 1]
-    MEAN = [55.1385 / 255.0]  # Optimization
-    STD = [46.2948 / 255.0]   # = 0.1841
+    # Normalization (after ToTensor)
+    MEAN = [55.1385 / 255.0]
+    STD = [46.2948 / 255.0]
     
     WEIGHT_DECAY = 1e-4
 
-    # Training Stability
-    GRAD_CLIP_NORM = 0.25      # Reduced from 0.5
-    USE_AMP = True            # Automatic Mixed Precision
-    DEBUG_MODE = True         # Debug mode
-    DETECT_ANOMALY = True     # Anomaly detection for debugging
+    # CRITICAL: Training Stability Settings
+    GRAD_CLIP_NORM = 0.5          # Increased from 0.25 for safety
+    USE_AMP = True                # Keep AMP enabled
+    DEBUG_MODE = False            # Turn off for production
+    DETECT_ANOMALY = False        # Turn off (causes slowdown)
+    
+    # NEW: AMP Scale Control
+    AMP_INIT_SCALE = 256          # Start lower (was 512)
+    AMP_MAX_SCALE = 4096          # Hard cap
+    AMP_GROWTH_FACTOR = 1.5       # Slower growth (default 2.0)
+    AMP_BACKOFF_FACTOR = 0.25     # Faster reduction (default 0.5)
+    AMP_GROWTH_INTERVAL = 500     # Wait longer (default 2000)
 
-    # Loss Weights
+    # ADJUSTED: Loss Weights (reduced alignment)
     DICE_WEIGHT = 0.5
     CE_WEIGHT = 0.5
     FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.05    # Reduced from 0.1
-    PERCEPTUAL_WEIGHT = 0.1   
+    ALIGNMENT_WEIGHT = 0.05       # REDUCED from 0.1 - will increase gradually
+    PERCEPTUAL_WEIGHT = 0.0       # Disabled for stability
     
     # W&B settings
     USE_WANDB = True
@@ -75,7 +80,7 @@ class Config:
     SCHEDULER_ETA_MIN = 1e-6
     
     # Early stopping
-    EARLY_STOPPING_PATIENCE = 20
+    EARLY_STOPPING_PATIENCE = 30  # Increased patience
     
     @classmethod
     def to_dict(cls):
@@ -96,6 +101,8 @@ class Config:
             'dice_weight': cls.DICE_WEIGHT,
             'ce_weight': cls.CE_WEIGHT,
             'alignment_weight': cls.ALIGNMENT_WEIGHT,
+            'grad_clip_norm': cls.GRAD_CLIP_NORM,
+            'amp_max_scale': cls.AMP_MAX_SCALE,
         }
     
     @classmethod
