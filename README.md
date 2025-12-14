@@ -201,7 +201,7 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 **Author**: Le Vu Hoang Tung  
 **Email**: levuhoangtung1542003@gmail.com  
-**GitHub**: [@hoangtung386](https://github.com/hoangtung386) [![GitHub](https://img.shields.io/badge/GitHub-Contributors-orange?style=flat-square&logo=github)](https://github.com/hoangtung386) 
-**X**: [@hoangtung386](https://x.com/hoangtung386) [![X](https://img.shields.io/badge/X-Contributors-orange?style=flat-square&logo=x)](https://x.com/hoangtung386) 
+**GitHub**: [@hoangtung386](https://github.com/hoangtung386) <br>
+**X**: [@hoangtung386](https://x.com/hoangtung386) <br>
 
 If you encounter any issues, please create an issue on GitHub or contact via email.
