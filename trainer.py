@@ -278,9 +278,13 @@ class Trainer:
                 new_scale = self.scaler.get_scale()
                 
                 # LIMIT SCALE GROWTH
-                if new_scale > 32768:
-                    self.scaler.update(new_scale=32768)
-                    new_scale = 32768
+                # User Requirement: Prevent scale from becoming too large (NaN/OOM risk)
+                # Cap at 16384 (2^14) which is safer than 65536
+                if new_scale > 16384:
+                    if new_scale != 16384:
+                        print(f"Scale capped: {new_scale:.0f} -> 16384")
+                    self.scaler.update(new_scale=16384)
+                    new_scale = 16384
                 
                 if new_scale < old_scale * 0.5:
                     print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
