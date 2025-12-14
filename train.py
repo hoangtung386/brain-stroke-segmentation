@@ -18,6 +18,10 @@ def main():
     # Set seed for reproducibility
     set_determinism(seed=Config.SEED)
     
+    if Config.DEBUG_MODE:
+        torch.autograd.set_detect_anomaly(True)
+        print("🔍 Debug mode enabled - anomaly detection ON")
+    
     # Create directories
     Config.create_directories()
     

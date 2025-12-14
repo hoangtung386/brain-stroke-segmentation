@@ -26,9 +26,9 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 8  # Giảm xuống 8 để ổn định hơn
+    BATCH_SIZE = 4  # Reduced from 8 to 4 for stability
     NUM_EPOCHS = 300
-    LEARNING_RATE = 5e-4  # Giảm từ 1e-3 để tránh gradient explosion
+    LEARNING_RATE = 5e-5  # Reduced from 1e-4
     
     # DataLoader parameters
     NUM_WORKERS = 16
@@ -49,19 +49,19 @@ class Config:
     MEAN = [55.1385 / 255.0]  # Optimization
     STD = [46.2948 / 255.0]   # = 0.1841
     
-    LEARNING_RATE = 1e-4      # Reduced from 5e-4
     WEIGHT_DECAY = 1e-4
 
     # Training Stability
-    GRAD_CLIP_NORM = 0.5      # Reduced from 1.0
+    GRAD_CLIP_NORM = 0.25      # Reduced from 0.5
     USE_AMP = True            # Automatic Mixed Precision
-    DETECT_ANOMALY = False    # Set True for debugging
+    DEBUG_MODE = True         # Debug mode
+    DETECT_ANOMALY = True     # Anomaly detection for debugging
 
     # Loss Weights
     DICE_WEIGHT = 0.5
-    CE_WEIGHT = 0.5           # Restored CE_WEIGHT
+    CE_WEIGHT = 0.5
     FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.1    # Temporarily disabled from 0.3
+    ALIGNMENT_WEIGHT = 0.05    # Reduced from 0.1
     PERCEPTUAL_WEIGHT = 0.1   
     
     # W&B settings

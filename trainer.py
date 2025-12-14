@@ -76,6 +76,7 @@ class Trainer:
         self.history = []
         self.wandb_run_id = None
         self.nan_count = 0  # Track số lần gặp NaN
+        self.alignment_warmup_epochs = 10  # Warmup epochs for alignment loss
         
         # Paths
         self.checkpoint_path = os.path.join(config.CHECKPOINT_DIR, 'checkpoint.pth')
@@ -91,6 +92,12 @@ class Trainer:
             print(f"Inf detected in {name}!")
             return True
         return False
+
+    def get_alignment_weight(self, epoch):
+        """Gradually increase alignment weight"""
+        if epoch < self.alignment_warmup_epochs:
+            return self.config.ALIGNMENT_WEIGHT * (epoch / self.alignment_warmup_epochs)
+        return self.config.ALIGNMENT_WEIGHT
     
     def save_checkpoint(self, epoch, val_dice, is_best=False):
         """Save training checkpoint"""
@@ -145,7 +152,7 @@ class Trainer:
             df.to_csv(self.history_csv_path, index=False)
     
     def train_epoch(self, epoch):
-        """Train one epoch with NaN detection"""
+        """Train one epoch with enhanced NaN protection"""
         self.model.train()
         self.nan_count = 0  # Reset NaN counter at start of epoch
         total_loss = 0
@@ -158,15 +165,22 @@ class Trainer:
         valid_batches = 0
         nan_in_epoch = False
         
-        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train]")
+        # Get current alignment weight
+        current_alignment_weight = self.get_alignment_weight(epoch)
+        self.criterion.alignment_weight = current_alignment_weight
+        
+        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train] (AlignW={current_alignment_weight:.4f})")
         for batch_idx, (images, masks) in enumerate(pbar):
+            # 🔹 CHECK 1: Validate input data range
+            if torch.isnan(images).any() or torch.isinf(images).any():
+                print(f"Skipping batch {batch_idx}: Invalid input data")
+                continue
+
+            # Clamp input to prevent extreme values
+            images = torch.clamp(images, -10, 10)
+            
             images = images.to(self.device)
             masks = masks.to(self.device)
-            
-            # Check input data for NaN
-            if self.check_for_nan(images, "input images"):
-                print(f"Skipping batch {batch_idx} due to NaN in input")
-                continue
             
             self.optimizer.zero_grad()
             
@@ -176,59 +190,70 @@ class Trainer:
                         images, return_alignment=True
                     )
                 
-                # Check outputs
-                if self.check_for_nan(outputs, "model outputs"):
-                    print(f"Skipping batch {batch_idx} due to NaN in outputs")
+                # 🔹 CHECK 2: Validate model outputs
+                if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                    print(f"Skipping batch {batch_idx}: NaN in model outputs")
                     self.nan_count += 1
-                    if self.nan_count > 10:
-                        print("Too many NaN occurrences! Stopping training...")
-                        nan_in_epoch = True
-                        break
+                    if self.nan_count > 5:
+                        print("Too many NaN batches! Stopping...")
+                        return None, None, None, None
                     continue
                 
-                # Move loss computation outside autocast
-                outputs = outputs.float()
+                # Clamp outputs
+                outputs = torch.clamp(outputs, -20, 20)
                 
-                original_slices = [
-                    images[:, i:i+1, :, :].float()
-                    for i in range(images.shape[1])
-                ]
+                # Move to float32 for loss computation
+                outputs = outputs.float()
+                original_slices = [s.float() for s in [images[:, i:i+1, :, :] for i in range(images.shape[1])]]
                 
                 if aligned_slices is not None:
-                    aligned_slices = [s.float() for s in aligned_slices]
+                    aligned_slices = [torch.clamp(s.float(), -10, 10) for s in aligned_slices]
                 if alignment_params is not None:
-                    alignment_params = [p.float() for p in alignment_params]
+                    alignment_params = [torch.clamp(p.float(), -1, 1) for p in alignment_params]
                 
                 # Compute loss
                 loss, dice_ce_loss, alignment_loss, align_details = self.criterion(
                     outputs, masks, aligned_slices, alignment_params, original_slices
                 )
                 
-                # Check loss for NaN
-                if self.check_for_nan(loss, "loss"):
-                    print(f"Skipping batch {batch_idx} due to NaN in loss")
+                # 🔹 CHECK 3: Validate loss values
+                if torch.isnan(loss).any() or torch.isinf(loss).any():
+                    print(f"Skipping batch {batch_idx}: NaN/Inf in loss")
                     self.nan_count += 1
                     continue
                 
-                # Backward pass
+                # 🔹 CHECK 4: Loss magnitude check
+                if loss.item() > 100:
+                    print(f"Warning: Very large loss ({loss.item():.2f})")
+                    # Scale down loss
+                    loss = loss * 0.1
+                
+                # Backward with scaling
                 self.scaler.scale(loss).backward()
                 
-                # Enhanced gradient clipping
+                # 🔹 CHECK 5: Gradient validation
                 self.scaler.unscale_(self.optimizer)
                 
-                # Check gradients for NaN
+                # Check for NaN gradients
                 has_nan_grad = False
+                max_grad_norm = 0.0
                 for name, param in self.model.named_parameters():
                     if param.grad is not None:
-                        if self.check_for_nan(param.grad, f"gradient {name}"):
+                        if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
+                            print(f"NaN gradient in {name}")
                             has_nan_grad = True
                             break
+                        max_grad_norm = max(max_grad_norm, param.grad.abs().max().item())
                 
                 if has_nan_grad:
-                    print(f"Skipping batch {batch_idx} due to NaN in gradients")
-                    self.nan_count += 1
+                    print(f"Skipping batch {batch_idx}: NaN in gradients")
                     self.optimizer.zero_grad()
+                    self.nan_count += 1
                     continue
+                
+                # 🔹 CHECK 6: Monitor gradient norm
+                if max_grad_norm > 100:
+                    print(f"Very large gradient: {max_grad_norm:.2f}")
                 
                 # Gradient clipping
                 grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -236,13 +261,22 @@ class Trainer:
                     max_norm=self.config.GRAD_CLIP_NORM
                 )
                 
-                # Monitor gradient norm
-                if grad_norm > 10.0:
-                    print(f"Large gradient norm: {grad_norm:.2f}")
+                # 🔹 CHECK 7: Skip update if gradient is too large
+                if grad_norm > 50:
+                    print(f"Skipping optimizer step: grad_norm={grad_norm:.2f}")
+                    self.optimizer.zero_grad()
+                    continue
                 
                 self.scaler.step(self.optimizer)
-                self.scaler.update()
                 
+                # 🔹 CHECK 8: Monitor scaler
+                old_scale = self.scaler.get_scale()
+                self.scaler.update()
+                new_scale = self.scaler.get_scale()
+                
+                if new_scale < old_scale * 0.5:
+                    print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
+
                 # Accumulate metrics
                 total_loss += loss.item()
                 total_dice_ce += dice_ce_loss.item()
@@ -264,10 +298,17 @@ class Trainer:
                 })
             
             except RuntimeError as e:
-                print(f"Runtime error in batch {batch_idx}: {e}")
-                self.nan_count += 1
-                self.optimizer.zero_grad()
-                continue
+                if "out of memory" in str(e):
+                    print(f"OOM at batch {batch_idx}, clearing cache...")
+                    torch.cuda.empty_cache()
+                    self.optimizer.zero_grad()
+                    self.nan_count += 1 # Count OOM as error to be aware
+                    continue
+                else:
+                    print(f"Runtime error in batch {batch_idx}: {e}")
+                    self.nan_count += 1
+                    self.optimizer.zero_grad()
+                    continue
         
         if nan_in_epoch:
             return None, None, None, None

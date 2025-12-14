@@ -63,9 +63,9 @@ class AlignmentNetwork(nn.Module):
         params = self.fc2(x)
         
         # CLIP giá trị để tránh transformation quá lớn
-        angle = torch.clamp(params[:, 0], -0.2, 0.2)  # ±11 degrees
-        shift_x = torch.clamp(params[:, 1], -0.1, 0.1)
-        shift_y = torch.clamp(params[:, 2], -0.1, 0.1)
+        angle = torch.clamp(params[:, 0], -0.1, 0.1)  # ±5.7 degrees (reduced from ±11)
+        shift_x = torch.clamp(params[:, 1], -0.05, 0.05) # reduced from ±0.1
+        shift_y = torch.clamp(params[:, 2], -0.05, 0.05)
         
         params = torch.stack([angle, shift_x, shift_y], dim=1)
         
