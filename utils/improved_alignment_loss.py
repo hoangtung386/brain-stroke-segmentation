@@ -319,4 +319,4 @@ class ImprovedCombinedLoss(nn.Module):
         total_loss = torch.clamp(total_loss, 0, 100)
         
         return total_loss, dice_ce_loss, alignment_loss, alignment_details
-        
+    
