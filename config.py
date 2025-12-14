@@ -31,7 +31,7 @@ class Config:
     LEARNING_RATE = 5e-5
     
     # DataLoader parameters
-    NUM_WORKERS = 16
+    NUM_WORKERS = 8
     CACHE_RATE = 0
     PIN_MEMORY = True
     PERSISTENT_WORKERS = True
