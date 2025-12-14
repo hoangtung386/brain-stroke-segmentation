@@ -189,7 +189,7 @@ python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 30
 
 ## 🫂 Acknowledgments
 
-This project was developed primarily by Le Vu Hoang Tung with assistance from AI tools during debugging and code analysis. For detailed information about contributions and AI assistance transparency, please see **[ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md)**.
+This project was developed primarily by Le Vu Hoang Tung with assistance from AI tools during debugging and code analysis. For detailed information about contributions and AI assistance transparency, please see [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md)
 
 ## 📄 License
 
@@ -201,7 +201,7 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 **Author**: Le Vu Hoang Tung  
 **Email**: levuhoangtung1542003@gmail.com  
-**GitHub**: [@hoangtung386](https://github.com/hoangtung386)
-**X**: [@hoangtung386](https://x.com/hoangtung386)
+**GitHub**: [@hoangtung386](https://github.com/hoangtung386) 
+**X**: [@hoangtung386](https://x.com/hoangtung386) 
 
 If you encounter any issues, please create an issue on GitHub or contact via email.
