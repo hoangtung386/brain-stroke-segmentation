@@ -37,6 +37,7 @@ The following AI tools provided **AUXILIARY SUPPORT** during development:
 
 ---
 
+> [!WARNING]
 > ## CRITICAL CLARIFICATION 
 > 
 > ### What AI Did NOT Do:
