@@ -5,6 +5,7 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 ![Architecture Overview](https://img.shields.io/badge/Architecture-LCNN%20%2B%20SEAN-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c)
 ![CUDA](https://img.shields.io/badge/CUDA-11.8%2B-76b900)
+[![Acknowledgments](https://img.shields.io/badge/ACKNOWLEDGMENTS-Contributors-orange?style=flat-square&logo=open-source-initiative)](./ACKNOWLEDGMENTS.md)
 
 ## 🌟 Model Architecture
 
@@ -187,10 +188,6 @@ python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 30
 | **Dimension Errors** | Mismatch in 2D vs 3D shapes | Architecture fix applied; `dataset.py` now handles 3D stacks correctly. |
 | **CUDA OOM** | Batch size too large | Decrease `BATCH_SIZE`; use `nvidia-smi` to check VRAM. |
 
-## 🫂 Acknowledgments
-
-This project was developed primarily by Le Vu Hoang Tung with assistance from AI tools during debugging and code analysis. For detailed information about contributions and AI assistance transparency, please see [![Acknowledgments](https://img.shields.io/badge/ACKNOWLEDGMENTS-Contributors-orange?style=flat-square&logo=open-source-initiative)](./ACKNOWLEDGMENTS.md)
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
@@ -202,6 +199,6 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 **Author**: Le Vu Hoang Tung  
 **Email**: levuhoangtung1542003@gmail.com  
 **GitHub**: [@hoangtung386](https://github.com/hoangtung386) <br>
-**X**: [@hoangtung386](https://x.com/hoangtung386) <br>
+**X**: [@hoangtung386](https://x.com/hoangtung386) 
 
 If you encounter any issues, please create an issue on GitHub or contact via email.
