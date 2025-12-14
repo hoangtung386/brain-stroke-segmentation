@@ -111,6 +111,15 @@ class Trainer:
             return False, f"Extreme value in {name}: {max_abs:.2f}"
         
         return True, "OK"
+    
+    def _safe_set_scale(self, new_scale):
+        """Safely modify scaler scale using state_dict"""
+        # Get current state
+        state_dict = self.scaler.state_dict()
+        # Modify scale
+        state_dict['scale'] = new_scale
+        # Reload
+        self.scaler.load_state_dict(state_dict)
 
     def control_scaler_growth(self):
         """
@@ -120,7 +129,7 @@ class Trainer:
         
         if current_scale > self.max_scale:
             print(f"\nScale too high ({current_scale:.0f}), reducing to {self.max_scale}")
-            self.scaler._scale.fill_(self.max_scale)
+            self._safe_set_scale(self.max_scale)
             self.scale_reduced_count += 1
             return True
         
@@ -316,7 +325,7 @@ class Trainer:
                     if current_scale > 256:
                         new_scale = current_scale * 0.5
                         print(f"Force reducing scale: {current_scale:.0f} → {new_scale:.0f}")
-                        self.scaler._scale.fill_(new_scale)
+                        self._safe_set_scale(new_scale)
                     
                     torch.cuda.empty_cache()
                     continue
@@ -382,7 +391,7 @@ class Trainer:
                     # Force reduce scale on OOM
                     new_scale = min(current_scale * 0.25, 512)
                     print(f"Reducing scale to {new_scale:.0f}")
-                    self.scaler._scale.fill_(new_scale)
+                    self._safe_set_scale(new_scale)
                     
                     self.consecutive_nans += 1
                     continue
