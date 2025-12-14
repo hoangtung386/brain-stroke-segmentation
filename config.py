@@ -26,9 +26,9 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 4  # Reduced from 8 to 4 for stability
+    BATCH_SIZE = 8
     NUM_EPOCHS = 300
-    LEARNING_RATE = 5e-5  # Reduced from 1e-4
+    LEARNING_RATE = 5e-5
     
     # DataLoader parameters
     NUM_WORKERS = 16
