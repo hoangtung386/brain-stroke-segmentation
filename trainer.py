@@ -246,7 +246,10 @@ class Trainer:
                         max_grad_norm = max(max_grad_norm, param.grad.abs().max().item())
                 
                 if has_nan_grad:
-                    print(f"Skipping batch {batch_idx}: NaN in gradients")
+                    print(f"Skipping batch {batch_idx}: NaN in gradients - Reducing Scale")
+                    # CRITICAL FIX: Update scaler so it learns to back off!
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
                     self.optimizer.zero_grad()
                     self.nan_count += 1
                     continue
@@ -273,6 +276,11 @@ class Trainer:
                 old_scale = self.scaler.get_scale()
                 self.scaler.update()
                 new_scale = self.scaler.get_scale()
+                
+                # LIMIT SCALE GROWTH
+                if new_scale > 32768:
+                    self.scaler.update(new_scale=32768)
+                    new_scale = 32768
                 
                 if new_scale < old_scale * 0.5:
                     print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
