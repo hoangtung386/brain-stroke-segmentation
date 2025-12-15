@@ -102,8 +102,20 @@ class SEAN(nn.Module):
             # Thêm gradient scaling để tránh explosion
             with torch.cuda.amp.autocast(enabled=False):
                 slice_i_fp32 = slice_i.float()
+                
+                # Prevent NaNs in input
+                if torch.isnan(slice_i_fp32).any():
+                    slice_i_fp32 = torch.nan_to_num(slice_i_fp32, nan=0.0)
+
                 params = self.alignment_net(slice_i_fp32)
+                
+                # Clamp params strictly
+                params = torch.clamp(params, -1.0, 1.0) 
+                
                 aligned_slice, theta = self.alignment_net.apply_transform(slice_i_fp32, params)
+                
+                # Sanitize aligned slice
+                aligned_slice = torch.nan_to_num(aligned_slice, nan=0.0)
             
             aligned_slices.append(aligned_slice)
             alignment_params.append(params)

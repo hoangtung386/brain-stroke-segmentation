@@ -16,11 +16,11 @@ class AlignmentNetwork(nn.Module):
         self.input_size = input_size
         
         self.conv1 = nn.Conv2d(1, 32, kernel_size=7, padding=3)
-        self.bn1 = nn.BatchNorm2d(32)  # ← THÊM BatchNorm
+        self.bn1 = nn.GroupNorm(4, 32)  # ← THÊM BatchNorm
         self.pool1 = nn.MaxPool2d(2, 2)
         
         self.conv2 = nn.Conv2d(32, 32, kernel_size=5, padding=2)
-        self.bn2 = nn.BatchNorm2d(32)  # Thêm BatchNorm
+        self.bn2 = nn.GroupNorm(4, 32)  # Thêm BatchNorm
         self.pool2 = nn.MaxPool2d(2, 2)
         
         # Tính toán ĐỘNG kích thước sau pooling
