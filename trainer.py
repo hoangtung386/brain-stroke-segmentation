@@ -20,7 +20,7 @@ from torch.cuda.amp import GradScaler, autocast
 from utils.improved_alignment_loss import ImprovedCombinedLoss
 
 
-class FixedTrainer:
+class Trainer:
     """
     Trainer with critical fixes for validation NaN issues
     """
