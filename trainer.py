@@ -511,7 +511,8 @@ class Trainer:
             print(f"📊 Epoch {epoch+1}/{num_epochs} Summary")
             print(f"{'='*60}")
             print(f"  Train Loss:       {train_loss:.4f}")
-            print(f"  Val Loss:         {val_loss:.4f if val_loss != float('inf') else 'N/A'}")
+            val_loss_str = f"{val_loss:.4f}" if val_loss != float('inf') else "N/A"
+            print(f"  Val Loss:         {val_loss_str}")
             print(f"  Val Dice:         {val_dice:.4f}")
             print(f"  Learning Rate:    {current_lr:.6f}")
             print(f"  Best Dice:        {self.best_dice:.4f}")
