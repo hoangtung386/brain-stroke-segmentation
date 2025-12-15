@@ -24,7 +24,7 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Batch size
-    BATCH_SIZE = 8
+    BATCH_SIZE = 4
     NUM_EPOCHS = 300
     LEARNING_RATE = 1e-4
     
@@ -48,7 +48,7 @@ class Config:
     WEIGHT_DECAY = 1e-4
     
     # Training stability
-    GRAD_CLIP_NORM = 0.5
+    GRAD_CLIP_NORM = 0.25
     USE_AMP = True
     DEBUG_MODE = False
     DETECT_ANOMALY = False
