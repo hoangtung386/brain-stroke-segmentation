@@ -62,7 +62,7 @@ class Config:
     
     # W&B settings
     USE_WANDB = True
-    WANDB_PROJECT = "Brain-Stroke-Segmentation-Safe"
+    WANDB_PROJECT = "Brain-Stroke-Segmentation"
     WANDB_ENTITY = None
     
     # Scheduler parameters
