@@ -112,10 +112,22 @@ class SEAN(nn.Module):
         x_aligned = torch.stack(aligned_slices, dim=2)  # (B, 1, 2T+1, H, W)
         
         # 3. 3D Encoding
-        skip1, x = self.enc1(x_aligned)
-        skip2, x = self.enc2(x)
-        skip3, x = self.enc3(x)
-        skip4, x = self.enc4(x)
+        # Use gradient checkpointing for encoder to save memory
+        from torch.utils.checkpoint import checkpoint
+        
+        def encoder_forward(x_in):
+            s1, x_out = self.enc1(x_in)
+            s2, x_out = self.enc2(x_out)
+            s3, x_out = self.enc3(x_out)
+            s4, x_out = self.enc4(x_out)
+            return s1, s2, s3, s4, x_out
+
+        if self.training and x_aligned.requires_grad:
+            skip1, skip2, skip3, skip4, x = checkpoint(
+                encoder_forward, x_aligned, use_reentrant=False
+            )
+        else:
+            skip1, skip2, skip3, skip4, x = encoder_forward(x_aligned)
         
         # 4. Bottleneck
         x = self.bottleneck(x)

@@ -26,7 +26,7 @@ class Config:
     IMAGE_SIZE = (512, 512)
     
     # Training parameters
-    BATCH_SIZE = 8
+    BATCH_SIZE = 4
     NUM_EPOCHS = 300
     LEARNING_RATE = 5e-5
     
@@ -52,7 +52,7 @@ class Config:
     WEIGHT_DECAY = 1e-4
 
     # Training Stability
-    GRAD_CLIP_NORM = 0.25      # Reduced from 0.25
+    GRAD_CLIP_NORM = 1.0      # Increased from 0.25
     USE_AMP = True            # Automatic Mixed Precision
     DEBUG_MODE = True         # Debug mode
     DETECT_ANOMALY = True     # Anomaly detection for debugging
@@ -61,7 +61,7 @@ class Config:
     DICE_WEIGHT = 0.5
     CE_WEIGHT = 0.5
     FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.05    # Reduced from 0.1
+    ALIGNMENT_WEIGHT = 0.01    # Reduced for stability
     PERCEPTUAL_WEIGHT = 0.1   
     
     # W&B settings

@@ -93,9 +93,20 @@ class AlignmentNetwork(nn.Module):
     
     def apply_transform(self, x, params):
         """Apply transformation to input"""
-        theta = self.get_transform_matrix(params, x.size())
-        grid = F.affine_grid(theta, x.size(), align_corners=False)
-        x_transformed = F.grid_sample(x, grid, align_corners=False, mode='bilinear')
+        # Detach params to prevent gradient explosion through grid generation
+        params_stable = params.detach()
+        
+        theta = self.get_transform_matrix(params_stable, x.size())
+        
+        # Use align_corners=True for stability
+        grid = F.affine_grid(theta, x.size(), align_corners=True)
+        
+        x_transformed = F.grid_sample(
+            x, grid, 
+            align_corners=True,   # Changed from False
+            mode='bilinear',
+            padding_mode='border' # Add padding mode
+        )
         return x_transformed, theta
 
 

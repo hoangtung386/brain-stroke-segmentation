@@ -55,10 +55,11 @@ class Trainer:
         # AMP Scaler với init_scale thấp hơn và max_scale giới hạn
         # FIXED: Sử dụng growth_interval để kiểm soát tăng scale
         self.scaler = GradScaler(
-            init_scale=512,
-            growth_factor=2.0,
-            backoff_factor=0.5,
-            growth_interval=2000  # Tăng scale chậm hơn
+            init_scale=256,        # Reduced from 512
+            growth_factor=1.5,     # Reduced from 2.0
+            backoff_factor=0.8,    # Increased from 0.5
+            growth_interval=5000,  # Increased from 2000
+            enabled=True
         )
         
         # Scheduler
@@ -160,6 +161,19 @@ class Trainer:
     def train_epoch(self, epoch):
         """Train one epoch with enhanced NaN protection"""
         self.model.train()
+        
+        # Emergency NaN Recovery: Check model parameters BEFORE training
+        for name, param in self.model.named_parameters():
+             if torch.isnan(param).any():
+                 print(f"NaN in {name} at start of epoch!")
+                 # Load last good checkpoint
+                 if os.path.exists(self.best_model_path):
+                     print("Loading best model to recover...")
+                     # Load checkpoint logic handled by helper or new load
+                     checkpoint = torch.load(self.best_model_path)
+                     self.model.load_state_dict(checkpoint['model_state_dict'])
+                 break
+
         self.nan_count = 0
         total_loss = 0
         total_dice_ce = 0
@@ -360,11 +374,11 @@ class Trainer:
                     
                     from monai.losses import DiceCELoss
                     val_criterion = DiceCELoss(
-                        include_background=True,
+                        include_background=False,  # FIXED: False to avoid background bias
                         to_onehot_y=True,
                         softmax=True,
-                        lambda_dice=self.config.DICE_WEIGHT,
-                        lambda_ce=self.config.CE_WEIGHT
+                        lambda_dice=0.7,   # Increased DICE weight
+                        lambda_ce=0.3      # Decreased CE weight
                     )
                     val_criterion = val_criterion.to(self.device)
                     
@@ -375,6 +389,11 @@ class Trainer:
                     
                     loss = val_criterion(outputs, masks_for_loss)
                     
+                    if torch.isnan(loss).any() or torch.isinf(loss).any():
+                        print(f"NaN/Inf in validation batch")
+                        continue
+
+                    # Original check_for_nan handles printing, but we want strict skipping
                     if not self.check_for_nan(loss, "val_loss"):
                         total_val_loss += loss.item()
                         valid_batches += 1
