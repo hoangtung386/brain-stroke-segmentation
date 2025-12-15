@@ -48,7 +48,7 @@ class Config:
     WEIGHT_DECAY = 1e-4
     
     # Training stability
-    GRAD_CLIP_NORM = 0.25
+    GRAD_CLIP_NORM = 0.5
     USE_AMP = True
     DEBUG_MODE = False
     DETECT_ANOMALY = False
