@@ -1,5 +1,5 @@
 """
-Trainer with NaN detection and recovery
+Trainer with NaN detection and recovery - FIXED
 """
 import os
 import pandas as pd
@@ -52,8 +52,14 @@ class Trainer:
             eps=1e-8
         )
         
-        # AMP Scaler với init_scale thấp hơn
-        self.scaler = GradScaler(init_scale=512)
+        # AMP Scaler với init_scale thấp hơn và max_scale giới hạn
+        # FIXED: Sử dụng growth_interval để kiểm soát tăng scale
+        self.scaler = GradScaler(
+            init_scale=512,
+            growth_factor=2.0,
+            backoff_factor=0.5,
+            growth_interval=2000  # Tăng scale chậm hơn
+        )
         
         # Scheduler
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -75,8 +81,8 @@ class Trainer:
         self.best_dice = 0.0
         self.history = []
         self.wandb_run_id = None
-        self.nan_count = 0  # Track số lần gặp NaN
-        self.alignment_warmup_epochs = 10  # Warmup epochs for alignment loss
+        self.nan_count = 0
+        self.alignment_warmup_epochs = 10
         
         # Paths
         self.checkpoint_path = os.path.join(config.CHECKPOINT_DIR, 'checkpoint.pth')
@@ -154,7 +160,7 @@ class Trainer:
     def train_epoch(self, epoch):
         """Train one epoch with enhanced NaN protection"""
         self.model.train()
-        self.nan_count = 0  # Reset NaN counter at start of epoch
+        self.nan_count = 0
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
@@ -171,12 +177,11 @@ class Trainer:
         
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train] (AlignW={current_alignment_weight:.4f})")
         for batch_idx, (images, masks) in enumerate(pbar):
-            # 🔹 CHECK 1: Validate input data range
+            # CHECK 1: Validate input data
             if torch.isnan(images).any() or torch.isinf(images).any():
                 print(f"Skipping batch {batch_idx}: Invalid input data")
                 continue
 
-            # Clamp input to prevent extreme values
             images = torch.clamp(images, -10, 10)
             
             images = images.to(self.device)
@@ -190,7 +195,7 @@ class Trainer:
                         images, return_alignment=True
                     )
                 
-                # 🔹 CHECK 2: Validate model outputs
+                # CHECK 2: Validate model outputs
                 if torch.isnan(outputs).any() or torch.isinf(outputs).any():
                     print(f"Skipping batch {batch_idx}: NaN in model outputs")
                     self.nan_count += 1
@@ -199,7 +204,6 @@ class Trainer:
                         return None, None, None, None
                     continue
                 
-                # Clamp outputs
                 outputs = torch.clamp(outputs, -20, 20)
                 
                 # Move to float32 for loss computation
@@ -216,25 +220,23 @@ class Trainer:
                     outputs, masks, aligned_slices, alignment_params, original_slices
                 )
                 
-                # 🔹 CHECK 3: Validate loss values
+                # CHECK 3: Validate loss
                 if torch.isnan(loss).any() or torch.isinf(loss).any():
                     print(f"Skipping batch {batch_idx}: NaN/Inf in loss")
                     self.nan_count += 1
                     continue
                 
-                # 🔹 CHECK 4: Loss magnitude check
+                # CHECK 4: Loss magnitude
                 if loss.item() > 100:
                     print(f"Warning: Very large loss ({loss.item():.2f})")
-                    # Scale down loss
                     loss = loss * 0.1
                 
-                # Backward with scaling
+                # Backward
                 self.scaler.scale(loss).backward()
                 
-                # 🔹 CHECK 5: Gradient validation
+                # CHECK 5: Gradient validation
                 self.scaler.unscale_(self.optimizer)
                 
-                # Check for NaN gradients
                 has_nan_grad = False
                 max_grad_norm = 0.0
                 for name, param in self.model.named_parameters():
@@ -246,15 +248,14 @@ class Trainer:
                         max_grad_norm = max(max_grad_norm, param.grad.abs().max().item())
                 
                 if has_nan_grad:
-                    print(f"Skipping batch {batch_idx}: NaN in gradients - Reducing Scale")
-                    # CRITICAL FIX: Update scaler so it learns to back off!
+                    print(f"Skipping batch {batch_idx}: NaN in gradients")
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                     self.optimizer.zero_grad()
                     self.nan_count += 1
                     continue
                 
-                # 🔹 CHECK 6: Monitor gradient norm
+                # CHECK 6: Monitor gradient norm
                 if max_grad_norm > 100:
                     print(f"Very large gradient: {max_grad_norm:.2f}")
                 
@@ -264,7 +265,7 @@ class Trainer:
                     max_norm=self.config.GRAD_CLIP_NORM
                 )
                 
-                # 🔹 CHECK 7: Skip update if gradient is too large
+                # CHECK 7: Skip if gradient too large
                 if grad_norm > 50:
                     print(f"Skipping optimizer step: grad_norm={grad_norm:.2f}")
                     self.optimizer.zero_grad()
@@ -272,19 +273,14 @@ class Trainer:
                 
                 self.scaler.step(self.optimizer)
                 
-                # 🔹 CHECK 8: Monitor scaler
+                # CHECK 8: Monitor scaler (FIXED - không can thiệp trực tiếp)
                 old_scale = self.scaler.get_scale()
                 self.scaler.update()
                 new_scale = self.scaler.get_scale()
                 
-                # LIMIT SCALE GROWTH
-                # User Requirement: Prevent scale from becoming too large (NaN/OOM risk)
-                # Cap at 16384 (2^14) which is safer than 65536
-                if new_scale > 16384:
-                    if new_scale != 16384:
-                        print(f"Scale capped: {new_scale:.0f} -> 16384")
-                    self.scaler.update(new_scale=16384)
-                    new_scale = 16384
+                # Chỉ log warning nếu scale quá lớn, nhưng KHÔNG cố gắng thay đổi
+                if new_scale > 32768:
+                    print(f"Warning: Scale is very high ({new_scale:.0f}). Monitoring for instability.")
                 
                 if new_scale < old_scale * 0.5:
                     print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
@@ -314,7 +310,7 @@ class Trainer:
                     print(f"OOM at batch {batch_idx}, clearing cache...")
                     torch.cuda.empty_cache()
                     self.optimizer.zero_grad()
-                    self.nan_count += 1 # Count OOM as error to be aware
+                    self.nan_count += 1
                     continue
                 else:
                     print(f"Runtime error in batch {batch_idx}: {e}")
@@ -362,7 +358,6 @@ class Trainer:
                     
                     outputs = outputs.float()
                     
-                    # Chỉ tính Dice + CE, bỏ qua Alignment Loss
                     from monai.losses import DiceCELoss
                     val_criterion = DiceCELoss(
                         include_background=True,
@@ -387,7 +382,6 @@ class Trainer:
                         print(f"Skipping batch due to NaN in val_loss")
                         continue
                     
-                    # Compute Dice metric
                     if masks.ndim == 3:
                         masks_for_metric = masks.unsqueeze(1)
                     else:
@@ -421,7 +415,6 @@ class Trainer:
         
         resumed = self.load_checkpoint()
         
-        # Initialize W&B if enabled
         if self.use_wandb:
             import wandb
             if resumed and self.wandb_run_id:
@@ -446,7 +439,7 @@ class Trainer:
             wandb.watch(self.model, log='all', log_freq=100)
         
         print(f"\n{'='*60}")
-        print(f"Starting FIXED training from epoch {self.start_epoch} to {num_epochs}")
+        print(f"Starting training from epoch {self.start_epoch} to {num_epochs}")
         print(f"Device: {self.device}")
         print(f"Batch size: {self.config.BATCH_SIZE}")
         print(f"Learning rate: {self.config.LEARNING_RATE}")
@@ -454,7 +447,6 @@ class Trainer:
         print(f"{'='*60}\n")
         
         for epoch in range(self.start_epoch, num_epochs):
-            # Train
             result = self.train_epoch(epoch + 1)
             
             if result[0] is None:
@@ -463,15 +455,12 @@ class Trainer:
             
             train_loss, dice_ce_loss, alignment_loss, align_details = result
             
-            # Validate
             val_dice, val_loss = self.validate(epoch + 1)
             
-            # Step scheduler
             self.scheduler.step()
             
             current_lr = self.optimizer.param_groups[0]['lr']
             
-            # Record metrics
             metrics = {
                 'epoch': epoch + 1,
                 'train_loss': train_loss,
@@ -486,7 +475,6 @@ class Trainer:
             
             self.history.append(metrics)
             
-            # Print metrics
             print(f"\n{'='*60}")
             print(f"Epoch {epoch+1}/{num_epochs} Summary:")
             print(f"{'='*60}")
@@ -498,12 +486,10 @@ class Trainer:
             print(f"  NaN Count:        {self.nan_count}")
             print(f"{'='*60}\n")
             
-            # Log to W&B
             if self.use_wandb:
                 import wandb
                 wandb.log(metrics)
             
-            # Save checkpoint
             is_best = val_dice > self.best_dice
             if is_best:
                 self.best_dice = val_dice
