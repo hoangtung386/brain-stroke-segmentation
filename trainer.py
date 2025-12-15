@@ -273,14 +273,14 @@ class Trainer:
                 
                 self.scaler.step(self.optimizer)
                 
-                # CHECK 8: Monitor scaler (FIXED - không can thiệp trực tiếp)
+                # CHECK 8: Monitor scaler (FIXED)
                 old_scale = self.scaler.get_scale()
                 self.scaler.update()
                 new_scale = self.scaler.get_scale()
                 
-                # Chỉ log warning nếu scale quá lớn, nhưng KHÔNG cố gắng thay đổi
+                # Chỉ cảnh báo nếu scale quá cao, KHÔNG can thiệp
                 if new_scale > 32768:
-                    print(f"Warning: Scale is very high ({new_scale:.0f}). Monitoring for instability.")
+                    print(f"Warning: Scale is very high ({new_scale:.0f})")
                 
                 if new_scale < old_scale * 0.5:
                     print(f"Scaler reduced: {old_scale:.0f} → {new_scale:.0f}")
