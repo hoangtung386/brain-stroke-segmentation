@@ -180,21 +180,7 @@ class Trainer:
             df.to_csv(self.history_csv_path, index=False)
     
     def train_epoch(self, epoch):
-        """
-        Proper Scaler State Management
-        """
         self.model.train()
-        
-        # Recovery check
-        for name, param in self.model.named_parameters():
-            if torch.isnan(param).any() or torch.isinf(param).any():
-                print(f"NaN/Inf detected in {name} before training!")
-                if os.path.exists(self.best_model_path):
-                    print("Loading best model to recover...")
-                    checkpoint = torch.load(self.best_model_path, map_location=self.device)
-                    self.model.load_state_dict(checkpoint['model_state_dict'])
-                    break
-        
         total_loss = 0
         total_dice_ce = 0
         total_alignment = 0
@@ -203,11 +189,10 @@ class Trainer:
         current_alignment_weight = self.get_alignment_weight(epoch)
         self.train_criterion.alignment_weight = current_alignment_weight
         
-        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train]")
+        pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train - FP32]")
         for batch_idx, (images, masks) in enumerate(pbar):
             # Input validation
             if not self.validate_tensor(images, "input_images"):
-                print(f"Invalid input at batch {batch_idx}, skipping...")
                 continue
             
             images = images.to(self.device)
@@ -215,115 +200,74 @@ class Trainer:
             
             self.optimizer.zero_grad()
             
-            # Restructured to ensure scaler.update() is ALWAYS called
-            should_skip = False
-            loss = None
-            
             try:
-                # Forward pass
-                with autocast(enabled=self.config.USE_AMP):
-                    outputs, aligned_slices, alignment_params = self.model(
-                        images, return_alignment=True
-                    )
-                    outputs = self.safe_clamp_logits(outputs)
+                # 1. Forward pass (KHÔNG dùng autocast)
+                # Chạy thuần Float32
+                outputs, aligned_slices, alignment_params = self.model(
+                    images, return_alignment=True
+                )
                 
-                # Validate outputs
-                if not self.validate_tensor(outputs, "outputs"):
-                    print(f"Invalid outputs at batch {batch_idx}, skipping...")
+                # Clamp output để tránh NaN ở hàm loss
+                outputs = self.safe_clamp_logits(outputs)
+                
+                # Validate outputs check NaN ngay lập tức
+                if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                    print(f"NaN detected in forward output at batch {batch_idx}")
                     self.nan_count += 1
-                    should_skip = True
-                else:
-                    # Prepare for loss
-                    outputs = outputs.float()
-                    original_slices = [s.float() for s in [images[:, i:i+1, :, :] for i in range(images.shape[1])]]
-                    
-                    if aligned_slices is not None:
-                        aligned_slices = [self.safe_clamp_logits(s.float()) for s in aligned_slices]
-                    if alignment_params is not None:
-                        alignment_params = [torch.clamp(p.float(), -1, 1) for p in alignment_params]
-                    
-                    # Compute loss
-                    loss, dice_ce_loss, alignment_loss, _ = self.train_criterion(
-                        outputs, masks, aligned_slices, alignment_params, original_slices
-                    )
-                    
-                    # Validate loss
-                    if not self.validate_tensor(loss, "loss"):
-                        print(f"Invalid loss at batch {batch_idx}, skipping...")
-                        self.nan_count += 1
-                        should_skip = True
-                    elif loss.item() > 100:
-                        print(f"Very large loss ({loss.item():.2f}), scaling down...")
-                        loss = loss * 0.1
+                    continue
+
+                # 2. Compute Loss
+                # Đảm bảo inputs cho loss là float32 (mặc định rồi, nhưng chắc chắn lại)
+                original_slices = [images[:, i:i+1, :, :] for i in range(images.shape[1])]
                 
-                if should_skip or loss is None:
+                loss, dice_ce_loss, alignment_loss, _ = self.train_criterion(
+                    outputs, masks, aligned_slices, alignment_params, original_slices
+                )
+                
+                if torch.isnan(loss):
+                    print(f"NaN loss at batch {batch_idx}")
+                    self.nan_count += 1
                     continue
                 
-                # Backward pass
-                self.scaler.scale(loss).backward()
+                # 3. Backward pass (KHÔNG dùng scaler)
+                loss.backward()
                 
-                # Unscale -> Check -> Update pattern
-                self.scaler.unscale_(self.optimizer)
-                
-                # Check gradients
-                has_nan_grad = False
-                for name, param in self.model.named_parameters():
-                    if param.grad is not None:
-                        if not self.validate_tensor(param.grad, f"grad_{name}"):
-                            has_nan_grad = True
-                            break
-                
-                if has_nan_grad:
-                    print(f"NaN gradient at batch {batch_idx}")
-                    self.optimizer.zero_grad()
-                    self.nan_count += 1
-                    # Update scaler before continue
-                    self.scaler.update()
-                    continue
-                
-                # Gradient clipping
+                # 4. Gradient Clipping (Quan trọng)
                 grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), 
                     max_norm=self.config.GRAD_CLIP_NORM
                 )
                 
-                if grad_norm > 50:
-                    print(f"Gradient too large ({grad_norm:.2f}), skipping...")
+                if torch.isnan(grad_norm) or torch.isinf(grad_norm):
+                    print(f"NaN gradient norm at batch {batch_idx}")
                     self.optimizer.zero_grad()
-                    # Update scaler before continue
-                    self.scaler.update()
+                    self.nan_count += 1
                     continue
                 
-                # Now safe to step and update
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                # 5. Optimizer Step
+                self.optimizer.step()
                 
                 # Accumulate metrics
                 total_loss += loss.item()
                 total_dice_ce += dice_ce_loss.item()
-                total_alignment += alignment_loss.item() if isinstance(alignment_loss, torch.Tensor) else alignment_loss
+                if isinstance(alignment_loss, torch.Tensor):
+                    total_alignment += alignment_loss.item()
+                else:
+                    total_alignment += alignment_loss
                 valid_batches += 1
                 
-                # Update progress bar
                 pbar.set_postfix({
                     'loss': f'{loss.item():.4f}',
-                    'grad': f'{grad_norm:.2f}',
-                    'scale': f'{self.scaler.get_scale():.0f}'
+                    'grad': f'{grad_norm:.2f}'
                 })
             
             except RuntimeError as e:
                 if "out of memory" in str(e):
-                    print(f"OOM at batch {batch_idx}, clearing cache...")
+                    print(f"OOM at batch {batch_idx}. Clearing cache.")
                     torch.cuda.empty_cache()
-                    self.optimizer.zero_grad()
-                    # Update scaler even on error
-                    self.scaler.update()
-                    continue
+                    # Nếu bị OOM nhiều quá, hãy break và báo người dùng giảm batch size
                 else:
-                    print(f"Runtime error: {e}")
-                    self.optimizer.zero_grad()
-                    # Update scaler even on error
-                    self.scaler.update()
+                    print(f"Error at batch {batch_idx}: {e}")
                     continue
         
         if valid_batches == 0:

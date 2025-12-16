@@ -26,7 +26,7 @@ class Config:
     # Batch size
     BATCH_SIZE = 4
     NUM_EPOCHS = 300
-    LEARNING_RATE = 1e-4
+    LEARNING_RATE = 1e-5
     
     # DataLoader parameters
     NUM_WORKERS = 4
@@ -48,8 +48,8 @@ class Config:
     WEIGHT_DECAY = 1e-4
     
     # Training stability
-    GRAD_CLIP_NORM = 0.5
-    USE_AMP = True
+    GRAD_CLIP_NORM = 0.1
+    USE_AMP = False
     DEBUG_MODE = False
     DETECT_ANOMALY = False
     
@@ -57,7 +57,7 @@ class Config:
     DICE_WEIGHT = 0.7
     CE_WEIGHT = 0.3
     FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.005
+    ALIGNMENT_WEIGHT = 0.05
     PERCEPTUAL_WEIGHT = 0.1   
     
     # W&B settings
@@ -123,17 +123,17 @@ class Config:
 # Configuration profiles for different use cases
 class FastDebugConfig(Config):
     """Fast debug configuration for quick testing"""
-    BATCH_SIZE = 1
+    BATCH_SIZE = 4
     NUM_EPOCHS = 5
     NUM_WORKERS = 2
     DEBUG_MODE = True
     DETECT_ANOMALY = True
-    USE_WANDB = False
+    USE_WANDB = True
 
 
 class ConservativeConfig(Config):
     """Ultra-conservative config for maximum stability"""
-    BATCH_SIZE = 1
+    BATCH_SIZE = 4
     LEARNING_RATE = 5e-5
     GRAD_CLIP_NORM = 0.25
     ALIGNMENT_WEIGHT = 0.001
@@ -146,5 +146,5 @@ class AggressiveConfig(Config):
     LEARNING_RATE = 5e-4
     NUM_WORKERS = 8
     GRAD_CLIP_NORM = 2.0
-    ALIGNMENT_WEIGHT = 0.02
-    
+    ALIGNMENT_WEIGHT = 0.05
+    USE_AMP = True
