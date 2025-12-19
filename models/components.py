@@ -16,11 +16,11 @@ class AlignmentNetwork(nn.Module):
         self.input_size = input_size
         
         self.conv1 = nn.Conv2d(1, 32, kernel_size=7, padding=3)
-        self.bn1 = nn.BatchNorm2d(32)  # ← THÊM BatchNorm
+        self.bn1 = nn.GroupNorm(4, 32)  # ← THÊM BatchNorm
         self.pool1 = nn.MaxPool2d(2, 2)
         
         self.conv2 = nn.Conv2d(32, 32, kernel_size=5, padding=2)
-        self.bn2 = nn.BatchNorm2d(32)  # Thêm BatchNorm
+        self.bn2 = nn.GroupNorm(4, 32)  # Thêm BatchNorm
         self.pool2 = nn.MaxPool2d(2, 2)
         
         # Tính toán ĐỘNG kích thước sau pooling
@@ -93,9 +93,20 @@ class AlignmentNetwork(nn.Module):
     
     def apply_transform(self, x, params):
         """Apply transformation to input"""
-        theta = self.get_transform_matrix(params, x.size())
-        grid = F.affine_grid(theta, x.size(), align_corners=False)
-        x_transformed = F.grid_sample(x, grid, align_corners=False, mode='bilinear')
+        # Detach params to prevent gradient explosion through grid generation
+        params_stable = params.detach()
+        
+        theta = self.get_transform_matrix(params_stable, x.size())
+        
+        # Use align_corners=True for stability
+        grid = F.affine_grid(theta, x.size(), align_corners=True)
+        
+        x_transformed = F.grid_sample(
+            x, grid, 
+            align_corners=True,   # Changed from False
+            mode='bilinear',
+            padding_mode='border' # Add padding mode
+        )
         return x_transformed, theta
 
 
