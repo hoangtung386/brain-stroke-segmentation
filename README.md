@@ -11,11 +11,11 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 
 ## Quick Links 🎯
 
-- **[Pre-trained Model on Hugging Face](https://huggingface.co/hoangtung386/brain-stroke-lcnn)** 🤗
-- **[Dataset Information](#-data-preparation)** 📊
-- **[Quick Start Guide](#-installation)** 🚀
-- **[Documentation](#-project-structure)** 📖
-- **[Contact & Support](#-contact)** 💬
+- 🤗 **[Pre-trained Model on Hugging Face](https://huggingface.co/hoangtung386/brain-stroke-lcnn)**
+- 📊 **[Dataset Information](#-data-preparation)**
+- 🚀 **[Quick Start Guide](#-installation)**
+- 📖 **[Documentation](#-project-structure)**
+- 💬 **[Contact & Support](#-contact)**
 
 ---
 
@@ -356,6 +356,6 @@ See [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md) for detailed acknowledgments incl
 
 ---
 
-## Star History 🌟
+## 🌟 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=hoangtung386/brain-stroke-segmentation&type=Date)](https://star-history.com/#hoangtung386/brain-stroke-segmentation&Date)
