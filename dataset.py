@@ -214,7 +214,7 @@ def create_dataloaders(config):
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.BATCH_SIZE,
-        shuffle=True,
+        shuffle=False,
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY,
         persistent_workers=config.PERSISTENT_WORKERS if config.NUM_WORKERS > 0 else False
