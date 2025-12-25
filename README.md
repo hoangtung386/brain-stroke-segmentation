@@ -9,17 +9,17 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 [![Acknowledgments](https://img.shields.io/badge/ACKNOWLEDGMENTS-Contributors-orange?style=flat-square&logo=open-source-initiative)](./ACKNOWLEDGMENTS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE.txt)
 
-## 🎯 Quick Links
+## Quick Links 🎯
 
-- 🤗 **[Pre-trained Model on Hugging Face](https://huggingface.co/hoangtung386/brain-stroke-lcnn)**
-- 📊 **[Dataset Information](#-data-preparation)**
-- 🚀 **[Quick Start Guide](#-installation)**
-- 📖 **[Documentation](#-project-structure)**
-- 💬 **[Contact & Support](#-contact)**
+- **[Pre-trained Model on Hugging Face](https://huggingface.co/hoangtung386/brain-stroke-lcnn)** 🤗
+- **[Dataset Information](#-data-preparation)** 📊
+- **[Quick Start Guide](#-installation)** 🚀
+- **[Documentation](#-project-structure)** 📖
+- **[Contact & Support](#-contact)** 💬
 
 ---
 
-## 🌟 Model Architecture
+## Model Architecture ❄️
 
 ![Architectural Model](./Architectural_model.png)
 
@@ -38,7 +38,7 @@ This diagram illustrates the **LCNN (Local-Global Combined Network)** architectu
 
 ---
 
-## 🤗 Pre-trained Model
+## Pre-trained Model 🤗
 
 The trained model is available on Hugging Face Hub for easy download and inference:
 
@@ -94,7 +94,7 @@ print(f"Prediction shape: {prediction.shape}")
 
 ---
 
-## 📂 Project Structure
+## Project Structure 📂
 
 ```bash
 brain-stroke-segmentation/
@@ -135,7 +135,7 @@ brain-stroke-segmentation/
 
 ---
 
-## 💻 System Requirements
+## System Requirements 💻
 
 *   **GPU**: NVIDIA RTX 3090 (24GB VRAM) or equivalent recommended.
 *   **OS**: Linux (tested on Ubuntu 20.04/22.04).
@@ -144,7 +144,7 @@ brain-stroke-segmentation/
 
 ---
 
-## 🚀 Installation
+## Installation 🚀
 
 ### Option 1: Auto Setup (Recommended)
 
@@ -189,7 +189,7 @@ pip install huggingface-hub
 
 ---
 
-## 📊 Data Preparation
+## Data Preparation 📊
 
 The model requires a specific directory structure. You can download the dataset automatically or organize your own.
 
@@ -223,7 +223,7 @@ data/
 
 ---
 
-## 🤖 Training
+## Training 🤖
 
 ### 1. Configure Weights & Biases (Optional)
 
@@ -272,7 +272,7 @@ Training logs, best models (`best_model.pth`), and history (`training_history.cs
 
 ---
 
-## 📉 Evaluation
+## Evaluation 📉
 
 Evaluate the trained model on the validation set to generate metrics and visual overlays.
 
@@ -290,7 +290,7 @@ python evaluate.py --checkpoint path/to/downloaded/best_model.pth --num-samples 
 
 ---
 
-## ⚡ Optimization Tips (RTX 3090)
+## Optimization Tips (RTX 3090) ⚡
 
 *   **Mixed Precision**: The trainer uses `torch.cuda.amp` by default for faster training and lower memory usage.
 *   **Data Loading**: Set `NUM_WORKERS = 4` or `8` in `config.py` for optimal data throughput. `PIN_MEMORY = True` is enabled by default.
@@ -300,7 +300,7 @@ python evaluate.py --checkpoint path/to/downloaded/best_model.pth --num-samples 
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting 🛠️
 
 | Issue | Possible Cause | Solution |
 | :--- | :--- | :--- |
@@ -311,12 +311,12 @@ python evaluate.py --checkpoint path/to/downloaded/best_model.pth --num-samples 
 
 ---
 
-## 📚 Citation
+## Citation 📚
 
 If you use this work in your research, please cite:
 
 ```bibtex
-@software{le2025brain_stroke_lcnn,
+@software{le_vu_hoang_tung_2025_brain_stroke_lcnn,
   author = {Le Vu Hoang Tung},
   title = {Brain Stroke Segmentation using LCNN Architecture},
   year = {2025},
@@ -328,13 +328,13 @@ If you use this work in your research, please cite:
 
 ---
 
-## 📄 License
+## License 📄
 
 This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
 
 ---
 
-## ✉️ Contact
+## Contact ✉️
 
 **Author**: Le Vu Hoang Tung  
 **Email**: levuhoangtung1542003@gmail.com  
@@ -346,7 +346,7 @@ If you encounter any issues, please create an issue on GitHub or contact via ema
 
 ---
 
-## 🤝🏻 Acknowledgments
+## Acknowledgments 🤝🏻
 
 See [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md) for detailed acknowledgments including:
 - Primary author contributions
@@ -356,6 +356,6 @@ See [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md) for detailed acknowledgments incl
 
 ---
 
-## 🌟 Star History
+## Star History 🌟
 
 [![Star History Chart](https://api.star-history.com/svg?repos=hoangtung386/brain-stroke-segmentation&type=Date)](https://star-history.com/#hoangtung386/brain-stroke-segmentation&Date)
