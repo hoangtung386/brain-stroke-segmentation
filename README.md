@@ -316,10 +316,10 @@ python evaluate.py --checkpoint path/to/downloaded/best_model.pth --num-samples 
 If you use this work in your research, please cite:
 
 ```bibtex
-@software{le_vu_hoang_tung_2025_brain_stroke_lcnn,
+@software{le_vu_hoang_tung_2026_brain_stroke_lcnn,
   author = {Le Vu Hoang Tung},
   title = {Brain Stroke Segmentation using LCNN Architecture},
-  year = {2025},
+  year = {2026},
   publisher = {GitHub},
   url = {https://github.com/hoangtung386/brain-stroke-segmentation},
   note = {Pre-trained model: \url{https://huggingface.co/hoangtung386/brain-stroke-lcnn}}
