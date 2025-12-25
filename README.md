@@ -19,7 +19,7 @@ A deep learning project for brain stroke lesion segmentation using **LCNN (Local
 
 ---
 
-## Model Architecture ❄️
+## Model Architecture 🔱
 
 ![Architectural Model](./Architectural_model.png)
 
